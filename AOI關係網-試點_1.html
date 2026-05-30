@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AOI 關係網・試點原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg:#0d0e12; --panel:#14161d; --panel-2:#1b1e27; --ink:#e9e6dc; --muted:#8d8d9c;
+    --tech:#e0a14b; --tech-sub:#46cdd6; --co:#84ce6f; --co-foreign:#7d7d8a;
+    --e-make:#5b8fd6; --e-coop:#3fae6e; --e-sub:#9aa0ad;
+    --border:rgba(233,230,220,.1);
+    --mono:'IBM Plex Mono',monospace; --sans:'Noto Sans TC',sans-serif; --serif:'Noto Serif TC',serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;position:relative;
+    background-image:
+      radial-gradient(900px 520px at 80% -10%,rgba(70,205,214,.06),transparent 60%),
+      radial-gradient(720px 460px at -8% 110%,rgba(224,161,75,.06),transparent 60%),
+      linear-gradient(rgba(233,230,220,.02) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(233,230,220,.02) 1px,transparent 1px);
+    background-size:auto,auto,46px 46px,46px 46px;}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:9;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  header{position:fixed;top:0;left:0;right:0;z-index:8;display:flex;align-items:center;gap:16px;padding:13px 22px;
+    background:linear-gradient(180deg,rgba(13,14,18,.95),rgba(13,14,18,.5) 70%,transparent);backdrop-filter:blur(2px)}
+  .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .brand h1{font-family:var(--serif);font-weight:900;font-size:20px;letter-spacing:.5px}
+  .brand .tag{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--border);padding:3px 8px;border-radius:20px}
+  .brand .sub{font-size:12px;color:var(--muted)}
+  .controls{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .btn{font-family:var(--mono);font-size:11.5px;color:var(--ink);background:var(--panel);border:1px solid var(--border);padding:7px 11px;border-radius:7px;cursor:pointer;transition:.18s}
+  .btn:hover{background:var(--panel-2);border-color:rgba(233,230,220,.25)}
+  .colhead{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;fill:var(--muted)}
+  #chart{position:fixed;inset:0;z-index:2}
+  .link{fill:none;transition:opacity .2s}
+  .link.make{stroke:var(--e-make)}
+  .link.coop{stroke:var(--e-coop)}
+  .link.benefit{stroke:#ef6a4a;stroke-dasharray:5 4}
+  .link.firm{filter:drop-shadow(0 0 3px rgba(63,174,110,.7))}
+  .link.sub{stroke:var(--e-sub);stroke-dasharray:3 4;stroke-opacity:.5}
+  .nlabel{font-family:var(--sans);font-size:12px;paint-order:stroke;stroke:var(--bg);stroke-width:3.6px;stroke-linejoin:round;pointer-events:none;transition:opacity .2s}
+  .nlabel.tech{font-family:var(--serif);font-weight:700}
+  .node .shape{transition:opacity .2s}
+  .faded{opacity:.12 !important}
+  .legend{position:fixed;left:20px;bottom:18px;z-index:7;background:rgba(20,22,29,.86);border:1px solid var(--border);border-radius:11px;padding:13px 15px;backdrop-filter:blur(6px);max-width:255px}
+  .legend h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:11px 0 8px}
+  .legend h4:first-child{margin-top:0}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:12px;margin:5px 0}
+  .legend .nd{width:15px;height:15px;flex:none}
+  .legend .nd.diamond{transform:rotate(45deg);border-radius:2px}
+  .legend .nd.circle{border-radius:50%}
+  .legend .ln{width:24px;height:0;flex:none}
+  .legend .hint{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:10.5px;color:var(--muted);line-height:1.6}
+  #panel{position:fixed;top:0;right:0;bottom:0;width:330px;z-index:7;background:linear-gradient(180deg,var(--panel),#101218);border-left:1px solid var(--border);padding:78px 22px 24px;transform:translateX(102%);transition:transform .3s cubic-bezier(.4,0,.1,1);overflow-y:auto}
+  #panel.open{transform:translateX(0)}
+  #panel .pclose{position:absolute;top:76px;right:18px;font-family:var(--mono);font-size:18px;color:var(--muted);cursor:pointer;background:none;border:none}
+  #panel .ptag{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;padding:4px 9px;border-radius:20px;display:inline-block}
+  #panel h2{font-family:var(--serif);font-weight:700;font-size:22px;line-height:1.25;margin:12px 0 4px}
+  #panel .pstock{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:10px}
+  #panel .pdesc{font-size:13.5px;color:#c9c6bc;line-height:1.75;margin-bottom:8px}
+  #panel .plist-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:16px 0 9px}
+  #panel .chip{display:inline-block;font-size:12px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;margin:0 5px 6px 0;cursor:pointer}
+  #panel .chip:hover{border-color:rgba(233,230,220,.3)}
+  footer{position:fixed;right:16px;bottom:12px;z-index:6;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;line-height:1.5}
+  .pulse{font-family:var(--mono);font-size:11px;color:var(--tech);position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:7;opacity:.85}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>AI 硬體供應鏈關係網</h1>
+    <span class="tag">v7</span>
+    <span class="sub">單擊=只看鄰居・雙擊=看兩層・永遠乾淨</span>
+  </div>
+  <div class="controls">
+    <button class="btn" id="btn-back" style="display:none;background:var(--rel);border-color:var(--rel);color:#1a0c08">← 回到全局</button>
+    <button class="btn" id="btn-expand">ROOT 兩層</button>
+    <button class="btn" id="btn-reset">回到起點</button>
+  </div>
+</header>
+<div class="pulse" id="pulse">← 點最左的「AI 硬體供應鏈」開始展開 →</div>
+<svg id="chart"></svg>
+<div class="legend">
+  <h4>節點 Nodes</h4>
+  <div class="row"><span class="nd diamond" style="background:var(--tech)"></span>粗技術(AOI)</div>
+  <div class="row"><span class="nd diamond" style="background:var(--tech-sub)"></span>細分技術</div>
+  <div class="row"><span class="nd diamond" style="background:#c98fe0"></span>檢測標的</div>
+  <div class="row"><span class="nd circle" style="background:var(--co)"></span>台廠(含股號)</div>
+  <div class="row"><span class="nd circle" style="background:var(--co-foreign)"></span>國外龍頭</div>
+  <div class="row"><span class="nd circle" style="background:#3a2f12;border:2px solid #e8c25a"></span>需求方 / 客戶(金邊環)</div>
+  <h4>連線 Edges</h4>
+  <div class="row"><span class="ln" style="border-top:2px dashed var(--e-sub)"></span>細分(技術→子技術)</div>
+  <div class="row"><span class="ln" style="border-top:2.4px solid var(--e-make)"></span>供應/做(公司→技術)</div>
+  <div class="row"><span class="ln" style="border-top:2.4px solid var(--e-coop)"></span>合作 / 供需(公司↔公司)</div>
+  <div class="row"><span class="ln" style="border-top:2.4px dashed #ef6a4a"></span>受惠(技術需求→公司)</div>
+  <div class="row"><span class="ln" style="border-top:3.4px solid var(--e-coop);filter:drop-shadow(0 0 2px rgba(63,174,110,.8))"></span>已落實訂單(粗+發光)</div>
+  <div class="hint"><b style="color:#e8c25a">單擊=以它為中心,只看它+鄰居(一層)</b>。雙擊=展兩層。畫面永遠只看當前局部,線不會爆。「回到起點」回 ROOT。滑過=亮連線。股號僅供辨識,請以券商資料為準。</div>
+</div>
+<aside id="panel">
+  <button class="pclose" id="pclose">✕</button>
+  <span class="ptag" id="ptag">NODE</span>
+  <h2 id="ptitle">—</h2>
+  <div class="pstock" id="pstock"></div>
+  <p class="pdesc" id="pdesc"></p>
+  <div id="pchildren"></div>
+</aside>
+<footer>主要玩家地圖・非完整清單 ・ 非投資建議 ・ 股號請自行核對 ・ 2026.05</footer>
+
+<script>
+/* ============ 資料(與 v1 相同) ============ */
+const NODES = [
+  {id:"ROOT", name:"AI 硬體供應鏈", type:"root", desc:"從 AI 晶片的先進封裝,到確保良率的檢測/測試設備。需求由 AI 晶片往下拉動:先進封裝(CoWoS)爆發 → 帶動檢測/測試需求 → 台廠設備商受惠。此為地圖總根節點,將逐步往上接更多環節(晶圓代工、伺服器、散熱…)。"},
+
+  // ===== 大分類層(第一層,掛在 ROOT 之下) =====
+  {id:"INSPECT", name:"檢測 / 測試設備", type:"tech", desc:"AI 伺服器與先進封裝推動『全檢』與高難度測試需求爆發,台灣在光學檢測(AOI)、X-ray、電測、半導體測試與測試介面全面卡位。點開看六大檢測技術。"},
+  {id:"ADVPKG", name:"先進封裝 CoWoS", type:"tech", desc:"AI 晶片效能的關鍵。台積電 CoWoS 產能供不應求(2027 年前持續吃緊),訂單外溢到封測廠、ABF 載板、封裝設備與材料。這是『檢測需求』的最大上游來源。"},
+
+  // ===== 粗技術(第一層,掛在 ROOT 之下) =====
+  {id:"AOI", name:"AOI 自動光學檢測", type:"tech", desc:"用機械視覺(光學取像+影像處理)做非接觸式瑕疵檢測與量測。AI 伺服器、先進封裝、高階載板推動『全檢』需求爆發,量測已從 2D 走向 3D。"},
+  {id:"AXI", name:"AXI X-ray 檢測", type:"tech", desc:"以 X 光檢測肉眼/光學看不到的內部接點(BGA 虛焊、PTH 上錫、IGBT 氣泡)。德律 AXI 全球坐二望一,緊追日本 Omron。"},
+  {id:"SPI", name:"SPI 錫膏檢測", type:"tech", desc:"SMT 製程中印刷錫膏的 3D 檢測,印刷品質是 SMT 瓶頸;德律、致茂等皆有布局。"},
+  {id:"ICT", name:"電測 / ICT 電路測試", type:"tech", desc:"電路板組裝(PCBA)後的電性測試(ICT/飛針/BT 電路板測試機)。德律為全球唯一一條龍電路組裝檢測設備業者。"},
+  {id:"SEMI_TEST", name:"半導體測試(測試機/分選機)", type:"tech", desc:"晶片封裝後的電性/功能測試,含測試機(tester)與分選機(handler)。AI 高功耗晶片推升溫控分選機需求。國外龍頭愛德萬。"},
+  {id:"TEST_IF", name:"測試介面(探針卡/載板)", type:"tech", desc:"晶圓測試階段測試機與晶片之間的介面,高度客製、不可替代。AI 高腳數晶片推動 MEMS/垂直探針卡;台股千金股密集區。"},
+  {id:"pcb_aoi", name:"PCB / 載板 AOI", type:"subtech", desc:"檢測 PCB、HDI、IC 載板的線路、微盲孔、mSAP 細線路。AI 伺服器板高層數、細線路升級直接拉動需求。"},
+  {id:"semi_aoi", name:"半導體 / 晶圓 AOI", type:"subtech", desc:"晶圓級外觀與線路檢測;3nm/2nm GAA 結構帶來線寬、側壁角、回蝕等新檢測挑戰,技術門檻最高。"},
+  {id:"adv_pkg_aoi", name:"先進封裝 AOI", type:"subtech", desc:"CoWoS/FOPLP/CoPoS 等封裝檢測:微凸塊(bump)、RDL 重佈線、Interposer、Underfill、Die Saw 到 Final。『一顆都不能壞』,2025 起爆發。"},
+  {id:"panel_aoi", name:"面板 / 顯示器 AOI", type:"subtech", desc:"LCD/顯示器光學檢測;也是面板級封裝(FOPLP)大面積檢測的技術基礎,掃描面積比晶圓級大數倍。"},
+  {id:"aoi_3d_spi", name:"3D AOI / SPI", type:"subtech", desc:"立體輪廓量測與錫膏檢測(Solder Paste Inspection);面板級封裝翹曲嚴重,須 3D 輪廓與高補償對焦。"},
+  {id:"cpo_aoi", name:"CPO / 光學元件檢測", type:"subtech", desc:"CPO(共封裝光學)量產的關鍵瓶頸之一;光路對位與耦合檢測,屬新藍海,設備商陸續卡位。"},
+
+  // === 第三層:檢測標的(leaf-tech) ===
+  // 先進封裝 AOI 之下
+  {id:"t_bump", name:"微凸塊 Bump 檢測", type:"target", desc:"微凸塊尺寸/間距越縮越小,bump 高度、共平面度(coplanarity)是 CoWoS 良率關鍵。"},
+  {id:"t_rdl", name:"RDL 重佈線檢測", type:"target", desc:"重佈線層,先進封裝技術門檻最高的一段(濕製程+黃光),線路缺陷檢測需求大。"},
+  {id:"t_warpage", name:"翹曲 Warpage 量測", type:"target", desc:"FOPLP/CoPoS 大面積基板受熱翹曲嚴重,須 3D 輪廓量測+動態對焦補償。"},
+  {id:"t_interposer", name:"中介層 / Die 貼合", type:"target", desc:"Interposer、Die-to-Die 貼合對位與堆疊檢測(2.5D/3D)。"},
+  // 半導體/晶圓 AOI 之下
+  {id:"t_waferdefect", name:"晶圓表面缺陷", type:"target", desc:"晶圓外觀刮痕、金屬殘留、顆粒等缺陷檢測,確保良率。"},
+  {id:"t_cd_overlay", name:"線寬 CD / 疊對 Overlay", type:"target", desc:"關鍵尺寸量測與圖形疊對,先進製程(3/2nm)門檻最高。"},
+  {id:"t_failure", name:"故障 / 材料分析", type:"target", desc:"失效分析、可靠度驗證、材料分析;2nm 與矽光子推動需求。"},
+  // PCB/載板 AOI 之下
+  {id:"t_pcb_trace", name:"PCB 線路檢測", type:"target", desc:"PCB/HDI 線路、微盲孔、mSAP 細線路缺陷檢測。"},
+  {id:"t_substrate", name:"ABF 載板檢測", type:"target", desc:"大尺寸 ABF/BT 載板線路與外觀檢測,AI 晶片帶動升級。"},
+  // 面板 / 3D-SPI / CPO 之下
+  {id:"t_panel_defect", name:"面板光學檢測", type:"target", desc:"LCD/顯示器 mura、亮點、線路缺陷檢測。"},
+  {id:"t_spi", name:"錫膏 SPI / AXI", type:"target", desc:"錫膏印刷檢測與 X-ray 內部接點檢測(BGA/隱藏焊點)。"},
+  {id:"t_cpo_couple", name:"光路對位 / 耦合檢測", type:"target", desc:"CPO 光纖對位與耦合效率檢測,量產新藍海。"},
+
+  // ===== 新粗技術之下的細分(第二層) =====
+  // AXI X-ray
+  {id:"axi_bga", name:"BGA / 隱藏焊點 X-ray", type:"subtech", desc:"檢測 BGA、PTH、IGBT 等肉眼看不到的內部焊接缺陷(虛焊、氣泡、連錫)。"},
+  {id:"axi_3dct", name:"3D CT 斷層檢測", type:"subtech", desc:"具 CT 功能的 X-ray,重建高解析切層,檢測雙面板/遮蔽嚴重區域。"},
+  // SPI
+  {id:"spi_3d", name:"3D 錫膏量測", type:"subtech", desc:"印刷後錫膏體積/高度/偏移的 3D 量測,SMT 良率第一道關卡。"},
+  // ICT 電測
+  {id:"ict_flying", name:"飛針 / ICT 測試", type:"subtech", desc:"電路板組裝後電性測試(開短路、元件值)。"},
+  {id:"ict_bt", name:"電路板測試機 BT", type:"subtech", desc:"PCBA 功能與電性測試機台。"},
+  // 半導體測試
+  {id:"st_tester", name:"測試機 Tester", type:"subtech", desc:"晶片電性/功能測試主機;國外愛德萬、Teradyne 主導。"},
+  {id:"st_handler", name:"分選機 Handler", type:"subtech", desc:"晶片測試的溫控與分選;AI 高功耗晶片推升主動溫控(ATC)需求。"},
+  // 測試介面
+  {id:"if_probecard", name:"探針卡 Probe Card", type:"subtech", desc:"晶圓測試核心耗材;AI 高腳數晶片推動 MEMS/垂直式高單價探針卡。【主要玩家,非完整清單】台廠尚有更多中小型/興櫃廠未盡列。"},
+  {id:"if_loadboard", name:"測試載板 Load Board", type:"subtech", desc:"晶圓/老化/系統級測試載板,大電流高速需求攀升。"},
+
+  {id:"machvision", name:"牧德", stock:"3563", type:"co", tw:true, desc:"PCB 光學檢測龍頭。『雙軌四線』策略:PCB AOI/電測 + 半導體 Wafer AOI/封裝檢測。2025 營收年增逾倍。"},
+  {id:"test_research", name:"德律", stock:"3030", type:"co", tw:true, desc:"PCB AOI + 電測(ICT/BT) + AXI(X-ray) + SPI 一條龍(全球唯一);AOI 銷售額曾超越韓國 Koh Young 居全球第一,AXI 坐二望一。延伸半導體後段檢測。"},
+  {id:"utechzone", name:"由田新技", stock:"3455", type:"co", tw:true, desc:"以載板/面板 AOI 起家(LCD 面板 AOI 市占全台第一),2018 起轉進半導體封裝;RDL 黃光製程檢測、Auto OM、單顆級多面檢測。2026 半導體營收佔比上看五成。"},
+  {id:"gpm", name:"均豪", stock:"5443", type:"co", tw:true, desc:"半導體設備廠,晶圓/切割後外觀 AOI、白光干涉量測、TGV 3D 穿透檢查;拿下 CoWoS 與封測大廠訂單。"},
+  {id:"crystalwise", name:"晶彩科", stock:"3535", type:"co", tw:true, desc:"晶圓量測系統,先進封裝量測放量。"},
+  {id:"allring", name:"萬潤", stock:"6187", type:"co", tw:true, desc:"半導體檢測/設備,點膠與 AOI 相關。"},
+  {id:"all_ring2", name:"竑騰", stock:"7751", type:"co", tw:true, desc:"半導體 AOI 設備(興櫃)。"},
+  {id:"lhwingtech", name:"聯策", stock:"6658", type:"co", tw:true, desc:"PCB/載板檢測設備。"},
+  {id:"berylinno", name:"倍利科", stock:"7822", type:"co", tw:true, desc:"AOI/量測設備,深耕 AI 演算法(軟體強項),已通過台積電認證;2025 營收年增約 188%。先進封裝檢測新星。"},
+  {id:"taliang", name:"大量", stock:"3167", type:"co", tw:true, desc:"從 PCB 跨足半導體,攻 AOI 與量測設備(含 CMP 墊測量、翹曲量測);2025 營收年增約 95%,獲台積電/封測廠點名釋單。"},
+  {id:"genmega", name:"政美應用", stock:"7853", type:"co", tw:true, desc:"先進封裝/FOPLP 檢測;與德國原廠合作 3D 量測(白光干涉+動態對焦),擅長大面積翹曲下量測 bump 高度與共平面度。"},
+  {id:"hermes_test", name:"漢測", stock:"7856", type:"co", tw:true, desc:"漢民集團;薄膜探針卡(全台唯一),提供封裝前晶圓測試到 2D/3D 缺陷檢測(興櫃)。"},
+  {id:"chroma", name:"致茂", stock:"2360", type:"co", tw:true, desc:"全球精密電子檢測儀器與自動化測試系統大廠;測試/檢測跨多領域。"},
+  {id:"materials_a", name:"閎康", stock:"3587", type:"co", tw:true, desc:"半導體檢測分析(材料分析/故障分析)龍頭,決戰 2nm 與矽光子。"},
+  {id:"itc", name:"宜特", stock:"3289", type:"co", tw:true, desc:"半導體驗證分析(可靠度/失效分析),先進封裝與矽光子受惠。"},
+  {id:"mastec", name:"汎銓", stock:"6830", type:"co", tw:true, desc:"半導體材料分析,半導體檢測三雄之一。"},
+  {id:"hongjing", name:"鴻勁精密", stock:"7769", type:"co", tw:true, desc:"主動溫控分選機(ATC handler),切入高功耗 AI 伺服器/HPC/車用晶片測試;2025 EPS 約 75.7 元,積極擴產供北美 AI 客戶。"},
+  {id:"wintest", name:"穎崴", stock:"6515", type:"co", tw:true, desc:"高階探針卡/測試介面,高速高頻高功率 SLT 系統級測試,獨攬北美 AI 晶片大單;2025 營收獲利創高。"},
+  {id:"mpi", name:"旺矽", stock:"6223", type:"co", tw:true, desc:"MEMS 探針卡產能倍增,受惠 NVIDIA Rubin 量產與 AI ASIC 3nm 升級;卡位 CPO 矽光子測試,並供 Google TPU。"},
+  {id:"chpt", name:"中華精測", stock:"6510", type:"co", tw:true, desc:"高階探針卡與 IC 測試載板;AI/HPC 與大電流高速測試載板需求帶動,新建三廠 2028 投產。"},
+  {id:"yljt", name:"雍智科技", stock:"6683", type:"co", tw:true, desc:"半導體測試載板設計與後段組裝(晶圓測試、老化測試載板、SFT、探針卡載板);與聯發科合作緊密,打入 Google 下一代 TPU 測試鏈,由 FT 跨足 CP。2025 營收連續創高。"},
+  {id:"leeno", name:"勵威電子", stock:"5246", type:"co", tw:true, desc:"MEMS 探針卡新兵(帆宣+欣興轉投資),應用 AI/HPC/GPU/車用;2025 底~2026 初推自研 MEMS 探針卡,客戶涵蓋台積電、聯電、創意、智原。"},
+  {id:"ctech", name:"創新服務", stock:"7828", type:"co", tw:true, desc:"MEMS 探針卡自動化設備(植針/檢測/鑽孔/返修)+ 探針卡維修服務 + 先進封裝銅柱模組(TGV);與探針卡大廠 Technoprobe 策略合作。興櫃。"},
+  {id:"advantest", name:"愛德萬 Advantest", type:"co", foreign:true, desc:"全球測試機(tester)龍頭;AI 晶片測試需求帶動股價市值大漲。台廠測試介面的關鍵搭配對象。"},
+  {id:"tsmc", name:"台積電", stock:"2330", type:"co", tw:true, demand:true, desc:"晶圓代工+先進封裝(CoWoS)龍頭。啟動 AP6/AP7/AP8 先進封測廠區,大舉釋出 AOI 檢測/量測訂單,是檢測設備商的最大需求方。"},
+  {id:"ase", name:"日月光投控", stock:"3711", type:"co", tw:true, demand:true, desc:"全球封測龍頭。已參股投資牧德,並向牧德採購 AOI/AVI 設備(一年累計約 3.71 億元);亦為由田、均豪等設備商客戶。"},
+  {id:"kla", name:"KLA 科磊", type:"co", foreign:true, desc:"全球半導體量檢測龍頭(含原 Orbotech 的 PCB/載板檢測)。台廠的主要外商對手。"},
+  {id:"onto", name:"Onto Innovation", type:"co", foreign:true, desc:"半導體量檢測大廠。"},
+  {id:"camtek", name:"Camtek", type:"co", foreign:true, desc:"先進封裝/晶圓檢測設備。"},
+
+  // ===== 先進封裝 CoWoS 之下的環節(掛在 ADVPKG) =====
+  {id:"pkg_foundry", name:"晶圓代工 + CoWoS", type:"subtech", desc:"先進封裝的核心製造,台積電 CoWoS/SoIC 主導,產能供不應求至 2027 年。"},
+  {id:"pkg_osat", name:"封測 OSAT", type:"subtech", desc:"接收台積電外溢訂單的專業封測廠;AI 測試營收占比快速攀升。"},
+  {id:"pkg_abf", name:"ABF 載板", type:"subtech", desc:"AI GPU/ASIC 的必要基板,2030 供給缺口估擴大至 22%,已脫離傳統 PCB 循環。"},
+  {id:"pkg_equip", name:"封裝設備 / 材料", type:"subtech", desc:"CoWoS 擴產直接受惠的『軍火供應商』:晶圓清洗、濕製程設備、光罩盒等。"},
+
+  // 先進封裝台廠(龍頭)
+  {id:"pkg_tsmc", name:"台積電", stock:"2330", type:"co", tw:true, desc:"CoWoS/SoIC 先進封裝絕對龍頭,產能供不應求,2027 年前持續吃緊。"},
+  {id:"pkg_ase", name:"日月光投控", stock:"3711", type:"co", tw:true, desc:"全球封測龍頭,接收 CoWoS 外溢訂單;先進封裝營收 2026 估翻倍。"},
+  {id:"kyec", name:"京元電子", stock:"2449", type:"co", tw:true, desc:"全球第二大測試廠,AI 相關營收占比已達 75~77%,受惠 Rubin/TPU 測試外溢。"},
+  {id:"powertech", name:"力成", stock:"6239", type:"co", tw:true, desc:"記憶體封裝龍頭,FOPLP 面板級封裝+HBM 封測雙軌;三星 HBM 在台主要封測夥伴之一。"},
+  {id:"unimicron", name:"欣興", stock:"3037", type:"co", tw:true, desc:"ABF 載板龍頭,TSMC CoWoS 與 Intel EMIB 雙重受惠。"},
+  {id:"nanya_pcb", name:"南電", stock:"8046", type:"co", tw:true, desc:"ABF 載板廠,2026 AI 相關載板佔營收估突破五成。"},
+  {id:"kinsus", name:"景碩", stock:"3189", type:"co", tw:true, desc:"ABF/BT 載板,T-Glass 缺口約 10~15% 延續至 2027 上半年,支撐漲價。"},
+  {id:"gallant", name:"弘塑", stock:"3131", type:"co", tw:true, desc:"CoWoS 晶圓清洗設備,台積電先進封裝新廠主要設備採購對象之一。"},
+  {id:"sunfter", name:"辛耘", stock:"3583", type:"co", tw:true, desc:"濕製程/先進封裝設備,CoWoS 擴產受惠。"},
+  {id:"galaxy", name:"家登精密", stock:"3680", type:"co", tw:true, desc:"EUV 光罩盒全球要角,先進製程擴產受惠。"},
+
+  // ===== 新增大分類(掛在 ROOT,depth1) =====
+  {id:"CHIP", name:"AI 晶片 / ASIC 設計", type:"tech", desc:"GPU 與客製化 ASIC。國外 Nvidia/Broadcom 主導;台灣 ASIC 設計服務三雄深度參與雲端自研晶片,是上游最強的結構性成長線。需求往下拉動先進封裝與 HBM。"},
+  {id:"MEM", name:"HBM / 記憶體", type:"tech", desc:"AI 晶片的咽喉。高階 HBM 由韓美三家主導,供需缺口延續數年;台廠以 DRAM、利基記憶體與模組切入。"},
+  {id:"SERVER", name:"AI 伺服器 / 系統組裝", type:"tech", desc:"台灣最核心的主場。GB200/GB300 機櫃幾乎由台廠包辦,全球無可替代。它是整條鏈的需求火車頭——往下拉動晶片、散熱、電源、連接器、PCB、網路。"},
+  {id:"THERMAL", name:"散熱 / 液冷", type:"tech", desc:"GB300 單櫃功耗逼近 600kW,液冷由選配變標配,滲透率 2026 衝上 40~50%。台灣散熱廠站上前所未有高度。"},
+  {id:"POWER", name:"電源 / 機櫃供電", type:"tech", desc:"從機櫃 800V HVDC 到供電模組,台廠是 AI 伺服器供電的全端要角,能見度看到 2027~2028。"},
+  {id:"CONN", name:"連接器 / 機構件", type:"tech", desc:"高速訊號互連與機構件;台廠在 socket、滑軌、機殼、高速線束各擁龍頭。"},
+  {id:"PCBCCL", name:"PCB / CCL 材料", type:"tech", desc:"AI 伺服器板規格大跳升,高速高層數帶動 CCL、HVLP 銅箔、M9 玻纖布升級。"},
+  {id:"NET", name:"網路 / 交換器 / CPO", type:"tech", desc:"算力擴張的下一戰場。800G→1.6T 交換器升級,台廠切入白牌交換器 ODM 與光通訊/CPO。"},
+  {id:"GRID", name:"重電 / 電力 / 電網", type:"tech", desc:"2026 瓶頸已從『缺晶片』轉為『缺電』。AI 資料中心擴建拉動,大型變壓器交期約 2.5 年,重電四雄訂單滿到 2027~2028。"},
+
+  // ----- 各分類的環節(subtech, depth2) -----
+  {id:"chip_asic", name:"ASIC 設計服務", type:"subtech", desc:"替雲端業者設計客製化 AI 晶片(turn-key),含 NRE 與量產。"},
+  {id:"chip_gpu", name:"GPU / 晶片龍頭", type:"subtech", desc:"通用 AI 加速器,國外主導。"},
+  {id:"mem_dram", name:"DRAM / 模組", type:"subtech", desc:"台系 DRAM 與記憶體模組。"},
+  {id:"mem_hbm", name:"HBM 高頻寬記憶體", type:"subtech", desc:"AI 晶片專用,韓美三雄主導。"},
+  {id:"srv_odm", name:"整機 ODM / 機櫃", type:"subtech", desc:"GB200/GB300 整櫃輸出,單櫃售價 200~300 萬美元。"},
+  {id:"th_liquid", name:"液冷(水冷板/CDU)", type:"subtech", desc:"冷卻分配單元 CDU 與水冷板 Cold Plate,2026 散熱主軸。Vera Rubin 全液冷,單櫃液冷產值上看 6.5 萬美元。"},
+  {id:"th_air", name:"風冷 / 散熱模組", type:"subtech", desc:"均熱片、熱管、3D VC、風扇。"},
+
+  // 散熱第三層(target)
+  {id:"th_coldplate", name:"水冷板 Cold Plate", type:"target", desc:"直接貼合 GPU 的冷板,2026 絕對主流(單相冷水板)。"},
+  {id:"th_cdu", name:"CDU 冷卻分配單元", type:"target", desc:"液冷系統心臟,水對水 CDU 高毛利。"},
+  {id:"th_qd", name:"快接頭 QD / 分歧管 Manifold", type:"target", desc:"防漏液的『生命線』,高階 Manifold 高毛利。"},
+  {id:"th_ihs", name:"均熱片 IHS / TIM", type:"target", desc:"Vera Rubin 需配合金屬 TIM2,IHS 均熱片 ASP 估增三倍。"},
+  {id:"th_immersion", name:"浸沒式液冷", type:"target", desc:"長線終極方案,部分廠與 Intel 合作開發。"},
+  {id:"pw_module", name:"電源模組 / HVDC", type:"subtech", desc:"800V HVDC、機櫃電源、供電模組。"},
+  {id:"cn_socket", name:"Socket / 滑軌 / 機殼 / 線束", type:"subtech", desc:"GPU/CPU socket、伺服器滑軌、機殼、高速 cable。"},
+  {id:"pcb_hdi", name:"伺服器 PCB / 高階 CCL", type:"subtech", desc:"AI 伺服器板與 HVLP 銅箔、M9 玻纖布等高階材料。"},
+  {id:"net_switch", name:"交換器 ODM", type:"subtech", desc:"白牌交換器,1.6T 升級。"},
+  {id:"net_cpo", name:"光通訊 / CPO", type:"subtech", desc:"共封裝光學:CPO 2026 進入商轉放量元年,輝達與博通兩大陣營同步導入,高度依賴台積電 COUPE 技術。台灣從矽光子代工、光引擎、光纖耦合到雷射光源一條龍。"},
+
+  // CPO 第三層(target)
+  {id:"cpo_coupe", name:"矽光子代工 COUPE", type:"target", desc:"台積電 COUPE 矽光子平台,CPO 落地的關鍵製程;國外有 Tower、GlobalFoundries。"},
+  {id:"cpo_engine", name:"光引擎 / 收發模組", type:"target", desc:"外接光源模組(ELSFP)、800G/1.6T 光收發模組的精密封裝。"},
+  {id:"cpo_fau", name:"光纖耦合 FAU / 連接", type:"target", desc:"高密度光纖陣列(FA/FAU),把光纖精準對接矽光子晶片(偏一微米訊號就斷崖衰減),CPO 連接端核心。"},
+  {id:"cpo_laser", name:"雷射光源 / InP 磊晶", type:"target", desc:"磷化銦 InP 雷射二極體磊晶,CPO 光源缺口的關鍵供應。"},
+  {id:"grid_trans", name:"變壓器 / 開關 / 配電", type:"subtech", desc:"重電四雄:變壓器、GIS 高壓開關、配電盤。"},
+
+  // ----- 公司(龍頭) -----
+  // ASIC 設計
+  {id:"alchip", name:"世芯-KY", stock:"3661", type:"co", tw:true, desc:"ASIC 設計服務,北美 CSP 大客戶 3/2nm 接力,AWS Trainium 等專案放量。"},
+  {id:"gusc", name:"創意", stock:"3443", type:"co", tw:true, desc:"台積電轉投資(持股約 35%),CoWoS turn-key;傳為微軟 Maia 協力。"},
+  {id:"faraday", name:"智原", stock:"3035", type:"co", tw:true, desc:"聯電系,28nm 以下利基與 NRE/IP。"},
+  {id:"mtk", name:"聯發科", stock:"2454", type:"co", tw:true, desc:"切入 Google TPU v8/ASIC 與邊緣 AI SoC。"},
+  {id:"nvidia", name:"Nvidia", type:"co", foreign:true, desc:"GPU 絕對龍頭,加速器出貨量八成以上。"},
+  {id:"broadcom", name:"Broadcom", type:"co", foreign:true, desc:"ASIC 與交換晶片龍頭。"},
+  {id:"amd", name:"AMD", type:"co", foreign:true, desc:"GPU 第二大,積極追趕。"},
+  // 記憶體
+  {id:"nanya", name:"南亞科", stock:"2408", type:"co", tw:true, desc:"台系 DRAM 主力。"},
+  {id:"winbond", name:"華邦電", stock:"2344", type:"co", tw:true, desc:"利基型記憶體。"},
+  {id:"adata", name:"威剛", stock:"3260", type:"co", tw:true, desc:"記憶體模組。"},
+  {id:"skhynix", name:"SK 海力士", type:"co", foreign:true, desc:"HBM 全球龍頭。"},
+  {id:"micron", name:"Micron 美光", type:"co", foreign:true, desc:"HBM 三雄之一。"},
+  // 伺服器 ODM
+  {id:"foxconn", name:"鴻海", stock:"2317", type:"co", tw:true, desc:"GB200/GB300 機櫃市佔最大,主攻 Nvidia GB 系列;CES 2026 keynote 點名夥伴。"},
+  {id:"quanta", name:"廣達", stock:"2382", type:"co", tw:true, desc:"主攻 Meta/Google 等 CSP,AI 伺服器毛利率突破雙位數;2026 產能上看翻倍。"},
+  {id:"wistron", name:"緯創", stock:"3231", type:"co", tw:true, desc:"掌握 Microsoft/AWS 訂單。"},
+  {id:"wiwynn", name:"緯穎", stock:"6669", type:"co", tw:true, desc:"北美 CSP 客製化伺服器最大供應商,AI 營收占比逾七成,GB300 直接受惠;受惠 AWS ASIC 裝機。"},
+  {id:"inventec", name:"英業達", stock:"2356", type:"co", tw:true, desc:"AI 伺服器 ODM 五雄之一。"},
+  {id:"gigabyte", name:"技嘉", stock:"2376", type:"co", tw:true, desc:"AI 伺服器/板卡。"},
+  // 散熱
+  {id:"auras", name:"奇鋐", stock:"3017", type:"co", tw:true, desc:"風冷+均熱片龍頭,進 Google TPU v8 水冷板與 GB300 液冷;2026/3 營收創高年增逾百。"},
+  {id:"shuanghong", name:"雙鴻", stock:"3324", type:"co", tw:true, desc:"深耕液冷逾十年,取得 GB300 認證,訂單能見度至 2027。"},
+  {id:"jentech", name:"健策", stock:"3653", type:"co", tw:true, desc:"均熱片/水冷供應鏈。"},
+  {id:"fositek", name:"富世達", stock:"6805", type:"co", tw:true, desc:"CDU/快接頭。"},
+  {id:"gaoli", name:"高力", stock:"8996", type:"co", tw:true, desc:"水冷板/熱交換,液冷供應鏈。"},
+  {id:"maico", name:"邁科", stock:"6831", type:"co", tw:true, desc:"水冷板供應鏈,已取得 CSP AVL 並布局 AWS ASIC,成長彈性高。"},
+  {id:"smei", name:"晟銘電", stock:"3013", type:"co", tw:true, desc:"機殼+液冷,GB300/資料中心散熱受惠。"},
+  {id:"kenmec", name:"廣運", stock:"6125", type:"co", tw:true, desc:"散熱/CDU 與系統整合,液冷供應鏈。"},
+  {id:"taisol", name:"泰碩", stock:"3338", type:"co", tw:true, desc:"熱管/均熱片,液冷量產導入期。"},
+  // CPO / 光通訊
+  {id:"browave", name:"波若威", stock:"3163", type:"co", tw:true, desc:"光學過濾技術,光纖套件/配線盒;台積電與輝達盟友,2026 進量產。"},
+  {id:"luxnet", name:"聯亞", stock:"3081", type:"co", tw:true, desc:"InP 雷射二極體磊晶片(矽光子關鍵發光元件)。"},
+  {id:"jpc", name:"上詮", stock:"3363", type:"co", tw:true, desc:"高密度光纖陣列 FAU 龍頭,台積電矽光子鏈唯一光通訊夥伴,卡位 COUPE/CPO 耦合,接 NVIDIA 訂單,2026 大規模量產。"},
+  {id:"browell", name:"眾達-KY", stock:"4977", type:"co", tw:true, desc:"緊綁博通陣營,外接光源模組 ELSFP 精密封裝,隨 Tomahawk 6 出貨,1.6T 2026 迎高峰。"},
+  {id:"sdo", name:"華星光", stock:"4979", type:"co", tw:true, desc:"設計到封裝垂直整合,與 Marvell 合作切入 AWS 雲端鏈,新廠承接 CPO 商轉需求。"},
+  // 電源
+  {id:"delta", name:"台達電", stock:"2308", type:"co", tw:true, desc:"電源龍頭,切入 Nvidia 800V HVDC;跨足電源+散熱全端,能見度看到 2027~2028。"},
+  {id:"liteon", name:"光寶科", stock:"2301", type:"co", tw:true, desc:"切入 800V HVDC 電源。"},
+  {id:"acbel", name:"康舒", stock:"6282", type:"co", tw:true, desc:"電源供應。"},
+  // 連接器/機構
+  {id:"lotes", name:"嘉澤", stock:"3533", type:"co", tw:true, desc:"GPU/CPU socket 龍頭。"},
+  {id:"kingslide", name:"川湖", stock:"8059", type:"co", tw:true, desc:"伺服器滑軌龍頭。"},
+  {id:"chenbro", name:"勤誠", stock:"8210", type:"co", tw:true, desc:"伺服器機殼龍頭。"},
+  {id:"bizlink", name:"貿聯-KY", stock:"3665", type:"co", tw:true, desc:"高速線束/cable。"},
+  // PCB/CCL
+  {id:"gce", name:"金像電", stock:"2368", type:"co", tw:true, desc:"AI 伺服器 PCB 主力。"},
+  {id:"trtech", name:"健鼎", stock:"3044", type:"co", tw:true, desc:"PCB 大廠。"},
+  {id:"emc", name:"台光電", stock:"2383", type:"co", tw:true, desc:"CCL 銅箔基板龍頭,M9 等級。"},
+  {id:"iteq", name:"聯茂", stock:"6213", type:"co", tw:true, desc:"CCL。"},
+  {id:"tuc", name:"台燿", stock:"6274", type:"co", tw:true, desc:"高階 CCL。"},
+  {id:"jentec", name:"金居", stock:"8358", type:"co", tw:true, desc:"高階 HVLP 銅箔。"},
+  // 網路/CPO
+  {id:"accton", name:"智邦", stock:"2345", type:"co", tw:true, desc:"白牌交換器 ODM 全球領導者,2026 主力動能 1.6T 交換器。"},
+  {id:"arcadyan", name:"智易", stock:"3596", type:"co", tw:true, desc:"網通設備。"},
+  {id:"luxshare_op", name:"光聖", stock:"6442", type:"co", tw:true, desc:"光通訊/CPO 相關。"},
+  // 重電
+  {id:"fortune", name:"華城", stock:"1519", type:"co", tw:true, desc:"變壓器龍頭,打入美 AIDC『星際之門』專案。"},
+  {id:"shihlin", name:"士電", stock:"1503", type:"co", tw:true, desc:"變壓器/配電,高科技廠變壓器市佔約七成。"},
+  {id:"chong", name:"中興電", stock:"1513", type:"co", tw:true, desc:"GIS 高壓開關龍頭,台電強韌電網受惠。"},
+  {id:"ally", name:"亞力", stock:"1514", type:"co", tw:true, desc:"配電盤/IDC 機房。"},
+
+  // ===== 第三層 targets:先進封裝 =====
+  {id:"pkg_cowos_l", name:"CoWoS-S / CoWoS-L 製程", type:"target", desc:"CoWoS-L(局部矽互連)2026 成主流,面積更大、成本較低;CoWoS-S 仍用於最高階晶片。"},
+  {id:"pkg_soic", name:"SoIC 3D 堆疊", type:"target", desc:"晶片直接堆疊(face-to-face bonding),台積電獨有技術,Apple M 系列首發。"},
+  {id:"pkg_foplp", name:"FOPLP 面板級封裝", type:"target", desc:"用方形面板取代圓形晶圓做封裝,面積利用率高;2026~2028 量產,群創/力成/日月光各自投入。"},
+  {id:"pkg_wet", name:"濕製程 / 清洗設備", type:"target", desc:"CoWoS 每站都需清洗,弘塑酸槽+單晶圓清洗機市佔約 60~80%,辛耘切暫時貼合/剝離。"},
+  {id:"pkg_cmp", name:"CMP 研磨 / 材料", type:"target", desc:"中介層拋光與研磨耗材;中砂(CMP 鑽石碟)卡位關鍵。"},
+  {id:"pkg_uf", name:"Underfill / 封裝膠材", type:"target", desc:"底部填充膠,防止微凸塊失效;台灣本土材料廠切入中。"},
+  {id:"pkg_mask", name:"光罩盒 / 載具", type:"target", desc:"EUV 光罩傳載盒,家登全球要角。"},
+
+  // 先進封裝新台廠
+  {id:"fanxuan", name:"帆宣", stock:"6196", type:"co", tw:true, desc:"半導體廠務系統整合/設備安裝;CoWoS 擴產每一座新廠都需要,轉投資勵威電子(MEMS 探針卡)。"},
+  {id:"kinik", name:"中砂", stock:"1560", type:"co", tw:true, desc:"CMP 鑽石碟(修整器),CoWoS 中介層研磨關鍵耗材;台積電直接客戶。"},
+  {id:"chihsheng", name:"志聖", stock:"2467", type:"co", tw:true, desc:"光熱/貼膜/固化設備,CoWoS 與 FOPLP 製程受惠。"},
+  {id:"junhwa", name:"均華", stock:"6640", type:"co", tw:true, desc:"挑揀(Die Pick)/貼合設備,先進封裝擴產受惠。"},
+  {id:"innolux", name:"群創", stock:"3481", type:"co", tw:true, desc:"面板廠轉型 FOPLP 面板級封裝,2026 開始試產。"},
+  {id:"changhsing", name:"長興", stock:"1717", type:"co", tw:true, desc:"Underfill 底部填充膠/封裝材料,少數台灣本土化學材料廠直接切入先進封裝製程。"},
+
+  // ===== 第三層 targets:AI 晶片/ASIC =====
+  {id:"chip_turnkey", name:"ASIC turn-key / NRE", type:"target", desc:"從規格定義到量產交鑰匙,含前端設計、後端實體設計、封裝整合。"},
+  {id:"chip_ip", name:"矽智財 IP / EDA", type:"target", desc:"晶片設計的積木與工具;Arm CPU IP、記憶體 IP、RISC-V 等。"},
+  // ASIC 新台廠
+  {id:"eno", name:"力旺", stock:"3529", type:"co", tw:true, desc:"記憶體 IP(eNVM)全球龍頭,嵌入式非揮發記憶體 IP 全球市佔超過七成。"},
+  {id:"andes", name:"晶心科", stock:"6533", type:"co", tw:true, desc:"RISC-V CPU IP 領導者,AI 邊緣運算與 IoT 受惠。"},
+
+  // ===== 第三層 targets:HBM/記憶體 =====
+  {id:"mem_stack", name:"HBM 堆疊封裝", type:"target", desc:"HBM4 堆疊到 16 層,封裝由韓美大廠主導,台系封測開始切入。"},
+  {id:"mem_module_t", name:"記憶體模組 / 工控儲存", type:"target", desc:"AI 伺服器記憶體模組與工控/邊緣嵌入式儲存。"},
+  // 記憶體新台廠
+  {id:"innodisk", name:"宜鼎", stock:"5289", type:"co", tw:true, desc:"工控/嵌入式 AI 儲存龍頭,邊緣 AI 受惠。"},
+
+  // ===== 第三層 targets:伺服器 =====
+  {id:"srv_rack", name:"整機 / 機櫃組裝", type:"target", desc:"GB200/GB300 整櫃(rack-scale)輸出,單櫃售價 200~300 萬美元。"},
+  {id:"srv_csp", name:"CSP 客製化白牌", type:"target", desc:"AWS/Google/Meta 等 CSP 客製規格,緯穎等深度綁定。"},
+
+  // ===== 第三層 targets:電源 =====
+  {id:"pw_psu", name:"PSU 電源供應器", type:"target", desc:"伺服器電源模組,功率密度持續攀升。"},
+  {id:"pw_hvdc", name:"800V HVDC 架構", type:"target", desc:"輝達主導的 800V 高壓直流供電,2027 下半年 Kyber 架構導入,重塑資料中心電力鏈。"},
+  {id:"pw_passive", name:"被動元件 / 導線架", type:"target", desc:"高壓大電流推升鉭電容、電感、MOSFET、導線架規格。"},
+  // 電源新台廠
+  {id:"fsp", name:"全漢", stock:"3015", type:"co", tw:true, desc:"PSU 大廠,Power Rack 與 HVDC 產品;Sidecar 液冷毛利率逾 30%。"},
+  {id:"hanchuan", name:"瀚荃", stock:"8103", type:"co", tw:true, desc:"AI 電源連接器占比快速提升,訂單與擴產能見度高。"},
+  {id:"sunde", name:"順德", stock:"2351", type:"co", tw:true, desc:"功率半導體封裝導線架,800V HVDC 帶動出貨與漲價。"},
+
+  // ===== 第三層 targets:連接器/機構 =====
+  {id:"cn_gpu_skt", name:"GPU / CPU Socket", type:"target", desc:"嘉澤獨佔 Nvidia GPU socket,每顆 ASP 持續上升。"},
+  {id:"cn_rail", name:"滑軌 / 機殼", type:"target", desc:"伺服器機殼與滑軌,川湖/勤誠台灣龍頭。"},
+  {id:"cn_cable", name:"高速線束 / Busbar", type:"target", desc:"800V HVDC 推升 Power Whip、Busbar、高速互連線束價值。"},
+  // 連接器新台廠
+  {id:"sinbon", name:"信邦", stock:"3023", type:"co", tw:true, desc:"連接線/cable 大廠,切入 AI 伺服器高速連接。"},
+
+  // ===== 第三層 targets:PCB/CCL =====
+  {id:"pcb_svr", name:"伺服器主板 / 背板", type:"target", desc:"AI 伺服器板層數從 20 多層升至 34~50 層,面積與鑽孔難度大增。"},
+  {id:"pcb_ccl", name:"CCL 銅箔基板(M8/M9)", type:"target", desc:"M8 量產中,M9 2026 下半年放量;台光電全球市佔 18.9% 居冠。"},
+  {id:"pcb_copper", name:"HVLP 銅箔", type:"target", desc:"極低輪廓銅箔,降低傳輸損耗,AI 伺服器/高速載板不可或缺。"},
+  {id:"pcb_glass", name:"玻纖布 / 石英布(T布)", type:"target", desc:"M9 規格將採高階石英布(Q-glass)取代傳統玻纖布,材料革命。"},
+  // PCB 新台廠
+  {id:"gaotech", name:"高技", stock:"5439", type:"co", tw:true, desc:"AI 伺服器主板/背板,與金像電並列伺服器 PCB 主力。"},
+  {id:"zdkay", name:"臻鼎-KY", stock:"4958", type:"co", tw:true, desc:"全球 PCB 龍頭(市值最大),跨 HDI/載板/伺服器板。"},
+  {id:"fujio", name:"富喬", stock:"1815", type:"co", tw:true, desc:"玻纖布本地代表,逐步切入低損耗 AI 體系。"},
+
+  // ===== 第三層 targets:重電 =====
+  {id:"grid_xfmr", name:"變壓器", type:"target", desc:"大型變壓器交期約 2.5 年,華城/士電訂單滿到 2027~2028。"},
+  {id:"grid_gis", name:"GIS 高壓開關", type:"target", desc:"中興電龍頭,台電強韌電網最受惠。"},
+  {id:"grid_dist", name:"配電盤 / 電纜", type:"target", desc:"亞力配電盤、大亞電纜,資料中心擴建受惠。"},
+  // 重電新台廠
+  {id:"taya", name:"大亞", stock:"1609", type:"co", tw:true, desc:"電纜龍頭,台電電網與 AI 資料中心雙重受惠。"},
+  {id:"teco", name:"東元", stock:"1504", type:"co", tw:true, desc:"重電/馬達/變頻器,資料中心電力系統受惠。"}
+];
+const LINKS = [
+  // ROOT → 兩大分類
+  {s:"ROOT",t:"INSPECT",type:"sub"},{s:"ROOT",t:"ADVPKG",type:"sub"},
+
+  // 檢測/測試 → 六大粗技術
+  {s:"INSPECT",t:"AOI",type:"sub"},{s:"INSPECT",t:"AXI",type:"sub"},{s:"INSPECT",t:"SPI",type:"sub"},
+  {s:"INSPECT",t:"ICT",type:"sub"},{s:"INSPECT",t:"SEMI_TEST",type:"sub"},{s:"INSPECT",t:"TEST_IF",type:"sub"},
+
+  // 先進封裝 → 環節
+  {s:"ADVPKG",t:"pkg_foundry",type:"sub"},{s:"ADVPKG",t:"pkg_osat",type:"sub"},{s:"ADVPKG",t:"pkg_abf",type:"sub"},{s:"ADVPKG",t:"pkg_equip",type:"sub"},
+  // 先進封裝環節 → 公司
+  {s:"pkg_tsmc",t:"pkg_foundry",type:"make"},
+  {s:"pkg_ase",t:"pkg_osat",type:"make"},{s:"kyec",t:"pkg_osat",type:"make"},{s:"powertech",t:"pkg_osat",type:"make"},
+  {s:"unimicron",t:"pkg_abf",type:"make"},{s:"nanya_pcb",t:"pkg_abf",type:"make"},{s:"kinsus",t:"pkg_abf",type:"make"},
+  {s:"gallant",t:"pkg_equip",type:"make"},{s:"sunfter",t:"pkg_equip",type:"make"},{s:"galaxy",t:"pkg_equip",type:"make"},
+
+  // ★需求線:先進封裝爆發 → 拉動檢測/測試需求(跨大分類的供需)
+  {s:"ADVPKG",t:"INSPECT",type:"coop",firm:true},
+
+  // AOI → 細分
+  {s:"AOI",t:"pcb_aoi",type:"sub"},{s:"AOI",t:"semi_aoi",type:"sub"},{s:"AOI",t:"adv_pkg_aoi",type:"sub"},
+  {s:"AOI",t:"panel_aoi",type:"sub"},{s:"AOI",t:"aoi_3d_spi",type:"sub"},{s:"AOI",t:"cpo_aoi",type:"sub"},
+
+  // 新粗技術 → 細分
+  {s:"AXI",t:"axi_bga",type:"sub"},{s:"AXI",t:"axi_3dct",type:"sub"},
+  {s:"SPI",t:"spi_3d",type:"sub"},
+  {s:"ICT",t:"ict_flying",type:"sub"},{s:"ICT",t:"ict_bt",type:"sub"},
+  {s:"SEMI_TEST",t:"st_tester",type:"sub"},{s:"SEMI_TEST",t:"st_handler",type:"sub"},
+  {s:"TEST_IF",t:"if_probecard",type:"sub"},{s:"TEST_IF",t:"if_loadboard",type:"sub"},
+
+  // 新細分 → 公司(供應/做)
+  {s:"test_research",t:"axi_bga",type:"make"},{s:"test_research",t:"axi_3dct",type:"make"},{s:"chroma",t:"axi_bga",type:"make"},
+  {s:"test_research",t:"spi_3d",type:"make"},{s:"chroma",t:"spi_3d",type:"make"},
+  {s:"test_research",t:"ict_flying",type:"make"},{s:"test_research",t:"ict_bt",type:"make"},{s:"chroma",t:"ict_flying",type:"make"},
+  {s:"hongjing",t:"st_handler",type:"make"},{s:"chroma",t:"st_tester",type:"make"},{s:"chroma",t:"st_handler",type:"make"},{s:"advantest",t:"st_tester",type:"make"},
+  {s:"wintest",t:"if_probecard",type:"make"},{s:"mpi",t:"if_probecard",type:"make"},{s:"chpt",t:"if_probecard",type:"make"},{s:"hermes_test",t:"if_probecard",type:"make"},{s:"leeno",t:"if_probecard",type:"make"},{s:"ctech",t:"if_probecard",type:"make"},
+  {s:"chpt",t:"if_loadboard",type:"make"},{s:"yljt",t:"if_loadboard",type:"make"},
+
+  // 受惠:測試介面受 AI 晶片測試需求帶動
+  {s:"SEMI_TEST",t:"hongjing",type:"benefit"},
+  {s:"TEST_IF",t:"wintest",type:"benefit"},{s:"TEST_IF",t:"mpi",type:"benefit"},{s:"TEST_IF",t:"chpt",type:"benefit"},
+
+  // 細分 → 第三層檢測標的
+  {s:"adv_pkg_aoi",t:"t_bump",type:"sub"},{s:"adv_pkg_aoi",t:"t_rdl",type:"sub"},{s:"adv_pkg_aoi",t:"t_warpage",type:"sub"},{s:"adv_pkg_aoi",t:"t_interposer",type:"sub"},
+  {s:"semi_aoi",t:"t_waferdefect",type:"sub"},{s:"semi_aoi",t:"t_cd_overlay",type:"sub"},{s:"semi_aoi",t:"t_failure",type:"sub"},
+  {s:"pcb_aoi",t:"t_pcb_trace",type:"sub"},{s:"pcb_aoi",t:"t_substrate",type:"sub"},
+  {s:"panel_aoi",t:"t_panel_defect",type:"sub"},
+  {s:"aoi_3d_spi",t:"t_spi",type:"sub"},{s:"aoi_3d_spi",t:"t_warpage",type:"sub"},
+  {s:"cpo_aoi",t:"t_cpo_couple",type:"sub"},
+
+  // 第三層 → 公司(供應/做)
+  // 微凸塊 Bump
+  {s:"machvision",t:"t_bump",type:"make"},{s:"berylinno",t:"t_bump",type:"make"},{s:"taliang",t:"t_bump",type:"make"},{s:"genmega",t:"t_bump",type:"make"},{s:"camtek",t:"t_bump",type:"make"},
+  // RDL
+  {s:"utechzone",t:"t_rdl",type:"make"},{s:"berylinno",t:"t_rdl",type:"make"},{s:"taliang",t:"t_rdl",type:"make"},
+  // 翹曲 Warpage
+  {s:"genmega",t:"t_warpage",type:"make"},{s:"gpm",t:"t_warpage",type:"make"},{s:"crystalwise",t:"t_warpage",type:"make"},
+  // 中介層/Die 貼合
+  {s:"gpm",t:"t_interposer",type:"make"},{s:"utechzone",t:"t_interposer",type:"make"},
+  // 晶圓表面缺陷
+  {s:"machvision",t:"t_waferdefect",type:"make"},{s:"gpm",t:"t_waferdefect",type:"make"},{s:"allring",t:"t_waferdefect",type:"make"},{s:"all_ring2",t:"t_waferdefect",type:"make"},{s:"kla",t:"t_waferdefect",type:"make"},{s:"onto",t:"t_waferdefect",type:"make"},
+  // 線寬/疊對
+  {s:"kla",t:"t_cd_overlay",type:"make"},{s:"crystalwise",t:"t_cd_overlay",type:"make"},{s:"hermes_test",t:"t_cd_overlay",type:"make"},
+  // 故障/材料分析
+  {s:"materials_a",t:"t_failure",type:"make"},{s:"itc",t:"t_failure",type:"make"},{s:"mastec",t:"t_failure",type:"make"},
+  // PCB 線路
+  {s:"machvision",t:"t_pcb_trace",type:"make"},{s:"test_research",t:"t_pcb_trace",type:"make"},{s:"utechzone",t:"t_pcb_trace",type:"make"},{s:"lhwingtech",t:"t_pcb_trace",type:"make"},{s:"kla",t:"t_pcb_trace",type:"make"},
+  // ABF 載板
+  {s:"lhwingtech",t:"t_substrate",type:"make"},{s:"utechzone",t:"t_substrate",type:"make"},
+  // 面板光學
+  {s:"utechzone",t:"t_panel_defect",type:"make"},{s:"genmega",t:"t_panel_defect",type:"make"},
+  // 錫膏/AXI
+  {s:"test_research",t:"t_spi",type:"make"},{s:"chroma",t:"t_spi",type:"make"},
+  // CPO 對位/耦合
+  {s:"utechzone",t:"t_cpo_couple",type:"make"},{s:"chroma",t:"t_cpo_couple",type:"make"},
+
+  // 受惠(技術需求爆發 → 公司因此受惠)benefit
+  {s:"adv_pkg_aoi",t:"machvision",type:"benefit"},{s:"adv_pkg_aoi",t:"berylinno",type:"benefit"},{s:"adv_pkg_aoi",t:"taliang",type:"benefit"},{s:"adv_pkg_aoi",t:"genmega",type:"benefit"},
+  {s:"cpo_aoi",t:"materials_a",type:"benefit"},{s:"cpo_aoi",t:"itc",type:"benefit"},
+
+  // 合作 / 供需(公司↔公司)coop —— firm:true 表示有明確訂單/公告憑據
+  {s:"ase",t:"machvision",type:"coop",firm:true},   // 日月光向牧德採購 AOI/AVI 約3.71億+參股(董事會公告)
+  {s:"tsmc",t:"utechzone",type:"coop"},      // 台積電 AP6/7/8 釋出 AOI 訂單,點名由田
+  {s:"tsmc",t:"taliang",type:"coop"},        // 台積電釋單點名大量
+  {s:"tsmc",t:"test_research",type:"coop"},  // 台積電釋單點名德律
+  {s:"tsmc",t:"gpm",type:"coop"},            // 台積電釋單點名均豪
+  {s:"tsmc",t:"machvision",type:"coop"},     // 台積電釋單點名牧德
+  {s:"tsmc",t:"berylinno",type:"coop"},      // 台積電認證/點名倍利科
+  {s:"tsmc",t:"crystalwise",type:"coop"},    // 台積電釋單點名晶彩科
+  {s:"ase",t:"utechzone",type:"coop"},       // 日月光為由田客戶
+  {s:"ase",t:"gpm",type:"coop"},             // 日月光為均豪客戶
+  {s:"tsmc",t:"mpi",type:"coop"},            // 旺矽貼近台積電24hr客製服務
+  {s:"ase",t:"mpi",type:"coop"},             // 旺矽貼近日月光
+  {s:"tsmc",t:"chpt",type:"coop"},            // 精測測試載板供台積電鏈
+
+  // ===== 新分類:ROOT → 大分類 =====
+  {s:"ROOT",t:"CHIP",type:"sub"},{s:"ROOT",t:"MEM",type:"sub"},{s:"ROOT",t:"SERVER",type:"sub"},
+  {s:"ROOT",t:"THERMAL",type:"sub"},{s:"ROOT",t:"POWER",type:"sub"},{s:"ROOT",t:"CONN",type:"sub"},
+  {s:"ROOT",t:"PCBCCL",type:"sub"},{s:"ROOT",t:"NET",type:"sub"},{s:"ROOT",t:"GRID",type:"sub"},
+
+  // 大分類 → 環節
+  {s:"CHIP",t:"chip_asic",type:"sub"},{s:"CHIP",t:"chip_gpu",type:"sub"},
+  {s:"MEM",t:"mem_dram",type:"sub"},{s:"MEM",t:"mem_hbm",type:"sub"},
+  {s:"SERVER",t:"srv_odm",type:"sub"},
+  {s:"THERMAL",t:"th_liquid",type:"sub"},{s:"THERMAL",t:"th_air",type:"sub"},
+  {s:"POWER",t:"pw_module",type:"sub"},
+  {s:"CONN",t:"cn_socket",type:"sub"},
+  {s:"PCBCCL",t:"pcb_hdi",type:"sub"},
+  {s:"NET",t:"net_switch",type:"sub"},{s:"NET",t:"net_cpo",type:"sub"},
+  {s:"GRID",t:"grid_trans",type:"sub"},
+
+  // 環節 → 公司(供應/做)
+  {s:"alchip",t:"chip_asic",type:"make"},{s:"gusc",t:"chip_asic",type:"make"},{s:"faraday",t:"chip_asic",type:"make"},{s:"mtk",t:"chip_asic",type:"make"},
+  {s:"nvidia",t:"chip_gpu",type:"make"},{s:"broadcom",t:"chip_gpu",type:"make"},{s:"amd",t:"chip_gpu",type:"make"},
+  {s:"nanya",t:"mem_dram",type:"make"},{s:"winbond",t:"mem_dram",type:"make"},{s:"adata",t:"mem_dram",type:"make"},
+  {s:"skhynix",t:"mem_hbm",type:"make"},{s:"micron",t:"mem_hbm",type:"make"},
+  {s:"foxconn",t:"srv_odm",type:"make"},{s:"quanta",t:"srv_odm",type:"make"},{s:"wistron",t:"srv_odm",type:"make"},{s:"wiwynn",t:"srv_odm",type:"make"},{s:"inventec",t:"srv_odm",type:"make"},{s:"gigabyte",t:"srv_odm",type:"make"},
+  {s:"auras",t:"th_air",type:"make"},{s:"jentech",t:"th_air",type:"make"},{s:"taisol",t:"th_air",type:"make"},
+  // 散熱第三層:液冷 → 標的
+  {s:"th_liquid",t:"th_coldplate",type:"sub"},{s:"th_liquid",t:"th_cdu",type:"sub"},{s:"th_liquid",t:"th_qd",type:"sub"},{s:"th_liquid",t:"th_immersion",type:"sub"},
+  {s:"th_air",t:"th_ihs",type:"sub"},
+  // 標的 → 公司
+  {s:"auras",t:"th_coldplate",type:"make"},{s:"shuanghong",t:"th_coldplate",type:"make"},{s:"maico",t:"th_coldplate",type:"make"},{s:"gaoli",t:"th_coldplate",type:"make"},
+  {s:"auras",t:"th_cdu",type:"make"},{s:"shuanghong",t:"th_cdu",type:"make"},{s:"kenmec",t:"th_cdu",type:"make"},{s:"gaoli",t:"th_cdu",type:"make"},
+  {s:"fositek",t:"th_qd",type:"make"},{s:"auras",t:"th_qd",type:"make"},
+  {s:"jentech",t:"th_ihs",type:"make"},{s:"auras",t:"th_ihs",type:"make"},
+  {s:"smei",t:"th_immersion",type:"make"},
+  {s:"delta",t:"pw_module",type:"make"},{s:"liteon",t:"pw_module",type:"make"},{s:"acbel",t:"pw_module",type:"make"},
+  {s:"lotes",t:"cn_socket",type:"make"},{s:"kingslide",t:"cn_socket",type:"make"},{s:"chenbro",t:"cn_socket",type:"make"},{s:"bizlink",t:"cn_socket",type:"make"},
+  {s:"gce",t:"pcb_hdi",type:"make"},{s:"trtech",t:"pcb_hdi",type:"make"},{s:"emc",t:"pcb_hdi",type:"make"},{s:"iteq",t:"pcb_hdi",type:"make"},{s:"tuc",t:"pcb_hdi",type:"make"},{s:"jentec",t:"pcb_hdi",type:"make"},
+  {s:"accton",t:"net_switch",type:"make"},{s:"arcadyan",t:"net_switch",type:"make"},
+  // CPO 第三層:光通訊 → 標的
+  {s:"net_cpo",t:"cpo_coupe",type:"sub"},{s:"net_cpo",t:"cpo_engine",type:"sub"},{s:"net_cpo",t:"cpo_fau",type:"sub"},{s:"net_cpo",t:"cpo_laser",type:"sub"},
+  // 標的 → 公司
+  {s:"jpc",t:"cpo_fau",type:"make"},{s:"browave",t:"cpo_fau",type:"make"},{s:"luxshare_op",t:"cpo_fau",type:"make"},
+  {s:"browell",t:"cpo_engine",type:"make"},{s:"sdo",t:"cpo_engine",type:"make"},
+  {s:"luxnet",t:"cpo_laser",type:"make"},
+  {s:"pkg_tsmc",t:"cpo_coupe",type:"make"},
+  // 旺矽切入 CPO 測試(跨到測試介面)
+  {s:"mpi",t:"t_cpo_couple",type:"make"},
+  {s:"fortune",t:"grid_trans",type:"make"},{s:"shihlin",t:"grid_trans",type:"make"},{s:"chong",t:"grid_trans",type:"make"},{s:"ally",t:"grid_trans",type:"make"},
+
+  // ===== 跨分類供需鏈(這張圖的靈魂:需求方→供給方) =====
+  {s:"SERVER",t:"CHIP",type:"coop",firm:true},     // 伺服器 需要 AI 晶片
+  {s:"SERVER",t:"THERMAL",type:"coop",firm:true},  // 伺服器 需要 散熱
+  {s:"SERVER",t:"POWER",type:"coop",firm:true},    // 伺服器 需要 電源
+  {s:"SERVER",t:"CONN",type:"coop"},               // 伺服器 需要 連接器/機構
+  {s:"SERVER",t:"PCBCCL",type:"coop"},             // 伺服器 需要 PCB
+  {s:"SERVER",t:"NET",type:"coop"},                // 伺服器 連接 交換器/CPO
+  {s:"SERVER",t:"GRID",type:"coop",firm:true},     // 資料中心 需要 重電/電力
+  {s:"CHIP",t:"ADVPKG",type:"coop",firm:true},     // AI 晶片 需要 先進封裝
+  {s:"CHIP",t:"MEM",type:"coop",firm:true},         // AI 晶片 需要 HBM
+
+  // ===== 先進封裝第三層:環節 → 標的 =====
+  {s:"pkg_foundry",t:"pkg_cowos_l",type:"sub"},{s:"pkg_foundry",t:"pkg_soic",type:"sub"},{s:"pkg_foundry",t:"pkg_foplp",type:"sub"},
+  {s:"pkg_equip",t:"pkg_wet",type:"sub"},{s:"pkg_equip",t:"pkg_cmp",type:"sub"},{s:"pkg_equip",t:"pkg_uf",type:"sub"},{s:"pkg_equip",t:"pkg_mask",type:"sub"},
+  // 標的 → 公司
+  {s:"pkg_tsmc",t:"pkg_cowos_l",type:"make"},{s:"pkg_tsmc",t:"pkg_soic",type:"make"},
+  {s:"innolux",t:"pkg_foplp",type:"make"},{s:"powertech",t:"pkg_foplp",type:"make"},{s:"pkg_ase",t:"pkg_foplp",type:"make"},
+  {s:"gallant",t:"pkg_wet",type:"make"},{s:"sunfter",t:"pkg_wet",type:"make"},{s:"fanxuan",t:"pkg_wet",type:"make"},
+  {s:"kinik",t:"pkg_cmp",type:"make"},
+  {s:"changhsing",t:"pkg_uf",type:"make"},
+  {s:"galaxy",t:"pkg_mask",type:"make"},
+  {s:"chihsheng",t:"pkg_wet",type:"make"},{s:"junhwa",t:"pkg_wet",type:"make"},
+
+  // ===== AI 晶片第三層 =====
+  {s:"chip_asic",t:"chip_turnkey",type:"sub"},{s:"chip_asic",t:"chip_ip",type:"sub"},
+  {s:"alchip",t:"chip_turnkey",type:"make"},{s:"gusc",t:"chip_turnkey",type:"make"},{s:"faraday",t:"chip_turnkey",type:"make"},{s:"mtk",t:"chip_turnkey",type:"make"},
+  {s:"eno",t:"chip_ip",type:"make"},{s:"andes",t:"chip_ip",type:"make"},
+
+  // ===== HBM 第三層 =====
+  {s:"mem_hbm",t:"mem_stack",type:"sub"},{s:"mem_dram",t:"mem_module_t",type:"sub"},
+  {s:"skhynix",t:"mem_stack",type:"make"},{s:"micron",t:"mem_stack",type:"make"},{s:"powertech",t:"mem_stack",type:"make"},
+  {s:"adata",t:"mem_module_t",type:"make"},{s:"innodisk",t:"mem_module_t",type:"make"},
+
+  // ===== 伺服器第三層 =====
+  {s:"srv_odm",t:"srv_rack",type:"sub"},{s:"srv_odm",t:"srv_csp",type:"sub"},
+  {s:"foxconn",t:"srv_rack",type:"make"},{s:"quanta",t:"srv_rack",type:"make"},{s:"wistron",t:"srv_rack",type:"make"},{s:"inventec",t:"srv_rack",type:"make"},{s:"gigabyte",t:"srv_rack",type:"make"},
+  {s:"wiwynn",t:"srv_csp",type:"make"},{s:"quanta",t:"srv_csp",type:"make"},
+
+  // ===== 電源第三層 =====
+  {s:"pw_module",t:"pw_psu",type:"sub"},{s:"pw_module",t:"pw_hvdc",type:"sub"},{s:"pw_module",t:"pw_passive",type:"sub"},
+  {s:"delta",t:"pw_psu",type:"make"},{s:"liteon",t:"pw_psu",type:"make"},{s:"fsp",t:"pw_psu",type:"make"},{s:"acbel",t:"pw_psu",type:"make"},
+  {s:"delta",t:"pw_hvdc",type:"make"},{s:"liteon",t:"pw_hvdc",type:"make"},{s:"bizlink",t:"pw_hvdc",type:"make"},
+  {s:"hanchuan",t:"pw_passive",type:"make"},{s:"sunde",t:"pw_passive",type:"make"},
+
+  // ===== 連接器第三層 =====
+  {s:"cn_socket",t:"cn_gpu_skt",type:"sub"},{s:"cn_socket",t:"cn_rail",type:"sub"},{s:"cn_socket",t:"cn_cable",type:"sub"},
+  {s:"lotes",t:"cn_gpu_skt",type:"make"},
+  {s:"kingslide",t:"cn_rail",type:"make"},{s:"chenbro",t:"cn_rail",type:"make"},
+  {s:"bizlink",t:"cn_cable",type:"make"},{s:"sinbon",t:"cn_cable",type:"make"},{s:"hanchuan",t:"cn_cable",type:"make"},
+
+  // ===== PCB/CCL 第三層 =====
+  {s:"pcb_hdi",t:"pcb_svr",type:"sub"},{s:"pcb_hdi",t:"pcb_ccl",type:"sub"},{s:"pcb_hdi",t:"pcb_copper",type:"sub"},{s:"pcb_hdi",t:"pcb_glass",type:"sub"},
+  {s:"gce",t:"pcb_svr",type:"make"},{s:"gaotech",t:"pcb_svr",type:"make"},{s:"zdkay",t:"pcb_svr",type:"make"},{s:"trtech",t:"pcb_svr",type:"make"},
+  {s:"emc",t:"pcb_ccl",type:"make"},{s:"iteq",t:"pcb_ccl",type:"make"},{s:"tuc",t:"pcb_ccl",type:"make"},
+  {s:"jentec",t:"pcb_copper",type:"make"},
+  {s:"fujio",t:"pcb_glass",type:"make"},
+
+  // ===== 重電第三層 =====
+  {s:"grid_trans",t:"grid_xfmr",type:"sub"},{s:"grid_trans",t:"grid_gis",type:"sub"},{s:"grid_trans",t:"grid_dist",type:"sub"},
+  {s:"fortune",t:"grid_xfmr",type:"make"},{s:"shihlin",t:"grid_xfmr",type:"make"},{s:"teco",t:"grid_xfmr",type:"make"},
+  {s:"chong",t:"grid_gis",type:"make"},
+  {s:"ally",t:"grid_dist",type:"make"},{s:"taya",t:"grid_dist",type:"make"}
+];
+
+const COLOR={root:"#e9e6dc",tech:"#e0a14b",subtech:"#46cdd6",target:"#c98fe0",co:"#84ce6f",coForeign:"#7d7d8a"};
+const TYPE_LABEL={root:"大分類 CATEGORY",tech:"粗技術 TECH",subtech:"細分技術 SUB-TECH",target:"檢測標的 TARGET",co:"公司 COMPANY"};
+
+const svg=d3.select("#chart");
+let W=innerWidth,H=innerHeight;
+svg.attr("width",W).attr("height",H);
+const defs=svg.append("defs");
+[["arrowMake","#5b8fd6"],["arrowCoop","#3fae6e"],["arrowBenefit","#ef6a4a"]].forEach(([id,c])=>{
+  defs.append("marker").attr("id",id).attr("viewBox","0 -5 10 10").attr("refX",16).attr("refY",0)
+    .attr("markerWidth",6).attr("markerHeight",6).attr("orient","auto")
+    .append("path").attr("d","M0,-4L9,0L0,4").attr("fill",c);
+});
+const g=svg.append("g");
+const gLink=g.append("g");
+const gNode=g.append("g");
+const zoom=d3.zoom().scaleExtent([0.3,2.6]).on("zoom",e=>g.attr("transform",e.transform));
+svg.call(zoom);
+
+const byId={};NODES.forEach(n=>byId[n.id]=n);
+const adj={};const adjL={};NODES.forEach(n=>{adj[n.id]=[];adjL[n.id]=[];});
+LINKS.forEach((l,i)=>{l._k="L"+i;adj[l.s].push(l.t);adj[l.t].push(l.s);adjL[l.s].push(l);adjL[l.t].push(l);});
+
+// 計算每個「結構節點」距 ROOT 的層深(只沿 sub 線),公司不算在內(固定最右欄)
+const depthOf={};
+(function computeDepth(){
+  depthOf["ROOT"]=0;
+  const q=["ROOT"];
+  while(q.length){
+    const cur=q.shift();
+    LINKS.forEach(l=>{
+      if(l.type==="sub" && l.s===cur && byId[l.t] && byId[l.t].type!=="co" && depthOf[l.t]===undefined){
+        depthOf[l.t]=depthOf[cur]+1; q.push(l.t);
+      }
+    });
+  }
+  // 沒被 sub 連到的結構節點給預設
+  NODES.forEach(n=>{ if(n.type!=="co" && depthOf[n.id]===undefined) depthOf[n.id]=1; });
+})();
+let maxDepth=0; Object.values(depthOf).forEach(d=>{if(d>maxDepth)maxDepth=d;});
+
+let sim,linkSel,nodeSel,selId=null;
+function nodeColor(n){return n.type==="root"?COLOR.root:n.type==="tech"?COLOR.tech:n.type==="subtech"?COLOR.subtech:n.type==="target"?COLOR.target:n.foreign?COLOR.coForeign:COLOR.co;}
+function nodeR(n){return n.type==="root"?20:n.type==="tech"?15:n.type==="subtech"?11:n.type==="target"?8:n.foreign?8:10;}
+let focusId="ROOT";          // 當前中心節點
+let focusLayers=1;           // 顯示幾層(1=單擊,2=雙擊)
+let focusNodes=new Set();    // 當前要顯示的節點
+let focusLinks=new Set();    // 當前要顯示的連線
+
+function computeFocus(id, layers){
+  focusId=id; focusLayers=layers;
+  focusNodes=new Set([id]);
+  const lvl1=new Set();
+  adj[id].forEach(o=>{focusNodes.add(o);lvl1.add(o);});
+  if(layers>=2){
+    lvl1.forEach(o=>{ adj[o].forEach(o2=>focusNodes.add(o2)); });
+  }
+  focusLinks=new Set();
+  LINKS.forEach(l=>{ if(focusNodes.has(l.s)&&focusNodes.has(l.t)) focusLinks.add(l._k); });
+}
+function curNodes(){return NODES.filter(n=>focusNodes.has(n.id));}
+function curLinks(){return LINKS.filter(l=>focusLinks.has(l._k));}
+
+// 單擊:以該節點為中心,只顯示一層鄰居
+function focusOne(id){
+  computeFocus(id, 1);
+  d3.select("#pulse").style("display","none");
+  d3.select("#btn-back").style("display",id==="ROOT"?"none":"inline-flex");
+  restart();
+  svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);
+}
+// 雙擊:以該節點為中心,顯示兩層
+function focusTwo(id){
+  computeFocus(id, 2);
+  d3.select("#pulse").style("display","none");
+  d3.select("#btn-back").style("display","inline-flex");
+  restart();
+  svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);
+}
+// 回到全局 = 回到 ROOT 一層
+function resetView(){
+  selId=null; d3.select("#panel").classed("open",false);
+  computeFocus("ROOT", 1);
+  d3.select("#btn-back").style("display","none");
+  restart();
+  svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+}
+// 全部展開 = ROOT 兩層
+function expandAll(){ focusTwo("ROOT"); }
+
+function linkPath(d){
+  const sx=d.source.x,sy=d.source.y,tx=d.target.x,ty=d.target.y,mx=(sx+tx)/2;
+  return `M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+}
+
+function restart(){
+  const nodes=curNodes();
+  const links=curLinks().map(l=>Object.assign({},l));
+  const old={};if(nodeSel)nodeSel.each(d=>old[d.id]=d);
+  nodes.forEach(n=>{const o=old[n.id];if(o){n.x=o.x;n.y=o.y;n.vx=o.vx;n.vy=o.vy;}else{n.x=W/2+(Math.random()-.5)*160;n.y=H/2+(Math.random()-.5)*160;}});
+  links.forEach(l=>{l.source=l.s;l.target=l.t;});
+
+  linkSel=gLink.selectAll("path").data(links,d=>d.s+"_"+d.t+"_"+d.type);
+  linkSel.exit().remove();
+  linkSel=linkSel.enter().append("path")
+      .attr("class",d=>"link "+d.type+(d.firm?" firm":""))
+      .attr("stroke-width",d=>d.firm?3.4:(d.type==="sub"?1.6:2))
+      .attr("marker-end",d=>d.type==="make"?"url(#arrowMake)":d.type==="coop"?"url(#arrowCoop)":d.type==="benefit"?"url(#arrowBenefit)":null)
+    .merge(linkSel);
+
+  nodeSel=gNode.selectAll("g.node").data(nodes,d=>d.id);
+  nodeSel.exit().remove();
+  const ent=nodeSel.enter().append("g").attr("class","node").style("cursor","pointer")
+      .on("click",(e,d)=>{openPanel(d);focusOne(d.id);})
+      .on("dblclick",(e,d)=>{e.stopPropagation();openPanel(d);focusTwo(d.id);})
+      .on("mouseenter",(e,d)=>highlight(d.id))
+      .on("mouseleave",()=>highlight(null))
+      .call(d3.drag()
+        .on("start",(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+        .on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y;})
+        .on("end",(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  ent.each(function(d){
+    const sel=d3.select(this);
+    if(d.type==="root"||d.type==="tech"||d.type==="subtech"||d.type==="target"){
+      const s=nodeR(d);
+      sel.append("rect").attr("class","shape").attr("width",s*1.7).attr("height",s*1.7).attr("x",-s*.85).attr("y",-s*.85)
+        .attr("transform","rotate(45)").attr("rx",3)
+        .attr("fill",d.type==="root"?"#26242c":d.type==="tech"?"#1c1e26":d.type==="subtech"?"#15222a":"#211a28")
+        .attr("stroke",nodeColor(d)).attr("stroke-width",d.type==="root"?3:d.type==="tech"?2.6:2);
+    }else{
+      if(d.demand){
+        // 需求方/客戶:外加虛線環區分
+        sel.append("circle").attr("r",nodeR(d)+5).attr("fill","none")
+          .attr("stroke","#e8c25a").attr("stroke-width",1.4).attr("stroke-dasharray","3 3").attr("opacity",.9);
+        sel.append("circle").attr("class","shape").attr("r",nodeR(d))
+          .attr("fill","#3a2f12").attr("stroke","#e8c25a").attr("stroke-width",2.4);
+      }else{
+        sel.append("circle").attr("class","shape").attr("r",nodeR(d))
+          .attr("fill",d.foreign?"#1a1a20":nodeColor(d)).attr("stroke",nodeColor(d)).attr("stroke-width",2);
+      }
+    }
+  });
+  ent.append("text").attr("class",d=>"nlabel "+(d.type==="co"?"co":"tech"))
+      .attr("text-anchor",d=>d.type==="co"?"start":"middle")
+      .attr("dx",d=>d.type==="co"?nodeR(d)+8:0)
+      .attr("dy",d=>d.type==="co"?4:((d.type==="tech"||d.type==="root")?-nodeR(d)-10:-nodeR(d)-8))
+      .style("fill",d=>d.type==="root"?"#ffffff":d.type==="tech"?"#f1cd92":d.type==="subtech"?"#9fe3e9":d.type==="target"?"#dcb6ef":d.demand?"#e8c25a":d.foreign?"#aeaeb8":"#bfe6ad")
+      .text(d=>d.stock?`${d.name} ${d.stock}`:d.name);
+  nodeSel=ent.merge(nodeSel);
+
+  // 放射圖:中心固定,鄰居排圈
+  const cx=W/2, cy=H/2;
+  const hop={}; hop[focusId]=0;
+  adj[focusId].forEach(o=>{ if(focusNodes.has(o)) hop[o]=1; });
+  nodes.forEach(n=>{ if(hop[n.id]===undefined) hop[n.id]=2; });
+  const lvl1=nodes.filter(n=>hop[n.id]===1), lvl2=nodes.filter(n=>hop[n.id]===2);
+  // 圈距依鄰居數動態調(少的時候不要太大)
+  const r1=Math.max(120, Math.min(W,H)*0.18 + lvl1.length*4);
+  const r2=Math.max(220, Math.min(W,H)*0.34 + lvl2.length*2);
+  nodes.forEach(n=>{
+    if(n.id===focusId){ n.fx=cx; n.fy=cy; }
+    else { n.fx=null; n.fy=null; }
+  });
+  lvl1.forEach((n,i)=>{ const a=(i/lvl1.length)*2*Math.PI - Math.PI/2; if(!old[n.id]){n.x=cx+r1*Math.cos(a);n.y=cy+r1*Math.sin(a);} });
+  lvl2.forEach((n,i)=>{ const a=(i/Math.max(1,lvl2.length))*2*Math.PI - Math.PI/4; if(!old[n.id]){n.x=cx+r2*Math.cos(a);n.y=cy+r2*Math.sin(a);} });
+
+  // 碰撞半徑:把標籤寬度也算進去
+  const collideR=d=>{
+    const base=nodeR(d);
+    const txt=(d.stock?`${d.name} ${d.stock}`:d.name)||"";
+    const labelW=txt.length*6.5;
+    if(d.type==="co") return base + 14 + labelW*0.45;
+    return base + 16 + Math.min(labelW*0.3, 34);
+  };
+
+  if(!sim){
+    sim=d3.forceSimulation(nodes)
+      .force("x",d3.forceX(cx).strength(.015))
+      .force("y",d3.forceY(cy).strength(.015))
+      .force("radial",d3.forceRadial(d=>hop[d.id]===0?0:hop[d.id]===1?r1:r2, cx, cy).strength(.55))
+      .force("link",d3.forceLink(links).id(d=>d.id).distance(90).strength(.04))
+      .force("charge",d3.forceManyBody().strength(-800).distanceMax(1000))
+      .force("collide",d3.forceCollide().radius(collideR).strength(1).iterations(5))
+      .on("tick",ticked);
+  }else{
+    sim.nodes(nodes);
+    sim.force("link").links(links);
+    sim.force("radial",d3.forceRadial(d=>hop[d.id]===0?0:hop[d.id]===1?r1:r2, cx, cy).strength(.55));
+    sim.force("charge",d3.forceManyBody().strength(-800).distanceMax(1000));
+    sim.force("collide",d3.forceCollide().radius(collideR).strength(1).iterations(5));
+    sim.force("x",d3.forceX(cx).strength(.015));
+    sim.force("y",d3.forceY(cy).strength(.015));
+    sim.force("link").distance(90).strength(.04);
+  }
+  sim.alpha(.95).alphaDecay(.015).restart();
+}
+function ticked(){
+  linkSel.attr("d",linkPath);
+  nodeSel.attr("transform",d=>`translate(${d.x},${d.y})`);
+}
+
+function highlight(id){
+  if(!id){
+    nodeSel&&nodeSel.classed("faded",false);
+    linkSel&&linkSel.classed("faded",false);
+    gNode.selectAll(".nlabel").classed("faded",false);
+    return;
+  }
+  const keep=new Set([id]); adj[id].forEach(o=>keep.add(o));
+  nodeSel.classed("faded",d=>!keep.has(d.id));
+  gNode.selectAll(".node").select(".shape");
+  nodeSel.each(function(d){d3.select(this).select(".nlabel");});
+  nodeSel.selectAll(".nlabel").classed("faded",function(){return false;});
+  gNode.selectAll("g.node").each(function(d){ d3.select(this).select("text").classed("faded",!keep.has(d.id)); });
+  linkSel.classed("faded",d=>!(d.s===id||d.t===id));
+}
+
+const panel=d3.select("#panel");
+function openPanel(d){
+  selId=d.id;
+  d3.select("#ptag").text(TYPE_LABEL[d.type]).style("background","color-mix(in srgb,"+nodeColor(d)+" 18%,transparent)").style("color",nodeColor(d));
+  d3.select("#ptitle").text(d.name);
+  d3.select("#pstock").text(d.stock?("股號 "+d.stock):(d.foreign?"國外廠商":""));
+  d3.select("#pdesc").text(d.desc||"");
+  const pc=d3.select("#pchildren");pc.html("");
+  const neigh=adj[d.id];
+  if(neigh.length){
+    const techs=neigh.filter(o=>byId[o].type!=="co");
+    const cos=neigh.filter(o=>byId[o].type==="co");
+    if(techs.length){pc.append("div").attr("class","plist-title").text("相關技術 / Tech");techs.forEach(o=>addChip(pc,byId[o]));}
+    if(cos.length){pc.append("div").attr("class","plist-title").text("相關公司 / Companies");cos.forEach(o=>addChip(pc,byId[o]));}
+  }
+  panel.classed("open",true);
+}
+function addChip(pc,o){
+  pc.append("span").attr("class","chip").style("border-left","3px solid "+nodeColor(o))
+    .text(o.stock?`${o.name} ${o.stock}`:o.name)
+    .on("click",()=>{focusOne(o.id);openPanel(o);});
+}
+d3.select("#pclose").on("click",()=>{panel.classed("open",false);selId=null;});
+d3.select("#btn-expand").on("click",expandAll);
+d3.select("#btn-reset").on("click",resetView);
+d3.select("#btn-back").on("click",resetView);
+svg.on("dblclick.zoom",null);
+addEventListener("resize",()=>{W=innerWidth;H=innerHeight;svg.attr("width",W).attr("height",H);if(sim){sim.alpha(.4).restart();}});
+
+computeFocus("ROOT",1);
+d3.select("#pulse").style("display","none");
+restart();
+</script>
+</body>
+</html>
