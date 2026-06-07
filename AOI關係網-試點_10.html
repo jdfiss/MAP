@@ -1,0 +1,2917 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AOI 關係網・試點原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --bg:#0d0e12; --panel:#14161d; --panel-2:#1b1e27; --ink:#e9e6dc; --muted:#8d8d9c;
+    --tech:#e0a14b; --tech-sub:#46cdd6; --co:#84ce6f; --co-foreign:#7d7d8a;
+    --e-make:#5b8fd6; --e-coop:#3fae6e; --e-sub:#9aa0ad;
+    --border:rgba(233,230,220,.1);
+    --mono:'IBM Plex Mono',monospace; --sans:'Noto Sans TC',sans-serif; --serif:'Noto Serif TC',serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;position:relative;
+    background-image:
+      radial-gradient(900px 520px at 80% -10%,rgba(70,205,214,.06),transparent 60%),
+      radial-gradient(720px 460px at -8% 110%,rgba(224,161,75,.06),transparent 60%),
+      linear-gradient(rgba(233,230,220,.02) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(233,230,220,.02) 1px,transparent 1px);
+    background-size:auto,auto,46px 46px,46px 46px;}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:9;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  header{position:fixed;top:0;left:0;right:0;z-index:8;display:flex;align-items:center;gap:16px;padding:13px 22px;
+    background:linear-gradient(180deg,rgba(13,14,18,.95),rgba(13,14,18,.5) 70%,transparent);backdrop-filter:blur(2px);
+    transition:transform .35s cubic-bezier(.4,0,.1,1)}
+  header.hidden{transform:translateY(-110%)}
+  #btn-fullscreen{position:fixed;top:12px;right:14px;z-index:9;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:15px;color:#c9c6bc;cursor:pointer;background:rgba(20,22,29,.85);border:1px solid var(--border);border-radius:9px;line-height:1;backdrop-filter:blur(4px)}
+  #btn-fullscreen:hover{color:#fff;background:rgba(40,42,50,.95)}
+  .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .brand h1{font-family:var(--serif);font-weight:900;font-size:20px;letter-spacing:.5px}
+  .brand .tag{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--border);padding:3px 8px;border-radius:20px}
+  .brand .sub{font-size:12px;color:var(--muted)}
+  .controls{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .btn{font-family:var(--mono);font-size:11.5px;color:var(--ink);background:var(--panel);border:1px solid var(--border);padding:7px 11px;border-radius:7px;cursor:pointer;transition:.18s}
+  .btn:hover{background:var(--panel-2);border-color:rgba(233,230,220,.25)}
+  .colhead{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;fill:var(--muted)}
+  #chart{position:fixed;inset:0;z-index:2}
+  .link{fill:none;transition:opacity .2s}
+  .link.make{stroke:var(--e-make)}
+  .link.coop{stroke:var(--e-coop)}
+  .link.coop{stroke:#5d8a73}
+  .link.benefit{stroke:#ef6a4a;stroke-dasharray:5 4}
+  .link.warn{stroke:#a874c9;stroke-dasharray:2 5;stroke-width:2.2}
+  .link.firm{stroke:#3fae6e}
+  .link.grade-fa{stroke:#e8c25a}
+  .link.sub{stroke:var(--e-sub);stroke-dasharray:3 4;stroke-opacity:.5}
+  .nlabel{font-family:var(--sans);font-size:12px;paint-order:stroke;stroke:var(--bg);stroke-width:3.6px;stroke-linejoin:round;pointer-events:none;transition:opacity .2s}
+  .nlabel.tech{font-family:var(--serif);font-weight:700}
+  .node .shape{transition:opacity .2s}
+  .faded{opacity:.12 !important}
+  .legend{position:fixed;left:20px;bottom:18px;z-index:7;background:rgba(20,22,29,.86);border:1px solid var(--border);border-radius:11px;padding:13px 15px 50px 15px;backdrop-filter:blur(6px);max-width:255px;transition:transform .3s cubic-bezier(.4,0,.1,1)}
+  .legend.collapsed{transform:translateX(calc(-100% - 28px))}
+  .legend h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:11px 0 8px}
+  .legend h4:first-child{margin-top:0;padding-right:0}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:12px;margin:5px 0}
+  .legend .nd{width:15px;height:15px;flex:none}
+  .legend .nd.diamond{transform:rotate(45deg);border-radius:2px}
+  .legend .nd.circle{border-radius:50%}
+  .legend .ln{width:24px;height:0;flex:none}
+  .legend .hint{margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:10.5px;color:var(--muted);line-height:1.6}
+  .legend .lclose{position:absolute;bottom:8px;right:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:18px;color:var(--muted);cursor:pointer;background:rgba(40,42,50,.5);border:1px solid var(--border);border-radius:8px;line-height:1}
+  .legend .lclose:hover{color:#fff;background:rgba(60,62,72,.7)}
+  #lopen{position:fixed;left:18px;bottom:18px;z-index:7;width:42px;height:42px;display:none;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:#c9c6bc;cursor:pointer;background:rgba(20,22,29,.92);border:1px solid var(--border);border-radius:11px;backdrop-filter:blur(6px);letter-spacing:.1em}
+  #lopen.show{display:flex}
+  #lopen:hover{color:#fff}
+  #panel{position:fixed;top:0;right:0;bottom:0;width:330px;max-width:90vw;z-index:7;background:linear-gradient(180deg,var(--panel),#101218);border-left:1px solid var(--border);padding:24px 22px 80px;transform:translateX(102%);transition:transform .3s cubic-bezier(.4,0,.1,1);overflow-y:auto}
+  #panel.open{transform:translateX(0)}
+  #panel .pclose{position:fixed;bottom:18px;right:22px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:22px;color:#c9c6bc;cursor:pointer;background:rgba(40,42,50,.85);border:1px solid var(--border);border-radius:10px;line-height:1;touch-action:manipulation;-webkit-tap-highlight-color:transparent;z-index:8;backdrop-filter:blur(4px);transform:translateX(102%);transition:transform .3s cubic-bezier(.4,0,.1,1)}
+  #panel.open ~ .pclose-wrap, #panel.open .pclose{transform:translateX(0)}
+  #panel .pclose:hover{color:#fff;background:rgba(60,62,72,.95)}
+  #panel .pclose:active{background:rgba(80,82,92,.95)}
+  #panel .ptag{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;padding:4px 9px;border-radius:20px;display:inline-block}
+  #panel h2{font-family:var(--serif);font-weight:700;font-size:22px;line-height:1.25;margin:12px 0 4px}
+  #panel .pstock{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:10px}
+  #panel .pdesc{font-size:13.5px;color:#c9c6bc;line-height:1.75;margin-bottom:8px}
+  #panel .plist-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin:16px 0 9px}
+  #panel .chip{display:inline-block;font-size:12px;background:var(--panel-2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;margin:0 5px 6px 0;cursor:pointer}
+  #panel .chip:hover{border-color:rgba(233,230,220,.3)}
+  @media (max-width:640px){
+    #panel{width:100vw;max-width:100vw;padding:24px 18px 80px}
+    .legend{max-width:calc(100vw - 40px);font-size:11px}
+    header{padding:8px 10px;gap:6px;flex-wrap:wrap}
+    .brand h1{font-size:16px}
+    .tag,.sub{display:none}
+    .btn{font-size:10.5px;padding:6px 8px}
+    #search-box{min-width:140px;font-size:10.5px;padding:6px 8px}
+    #dashboard{display:none}
+    #filter-panel{right:8px;left:8px;max-width:none}
+    /* 手機節點與標籤微放大 + 觸控更友善 */
+    .node{touch-action:none}
+    .nlabel{font-size:11.5px}
+    .nlabel.co{font-size:11.5px}
+    .nlabel.tech{font-size:13px}
+  }
+  footer{position:fixed;right:16px;bottom:12px;z-index:6;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;line-height:1.5}
+  .pulse{font-family:var(--mono);font-size:11px;color:var(--tech);position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:7;opacity:.85}
+  #tip{position:fixed;z-index:9;pointer-events:none;background:rgba(15,17,22,.96);border:1px solid var(--border);border-radius:9px;padding:8px 11px;max-width:280px;font-size:11.5px;color:#d8d6cc;line-height:1.55;opacity:0;transition:opacity .12s;backdrop-filter:blur(6px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  #tip.show{opacity:1}
+  #tip .tname{font-family:var(--serif);font-size:14px;font-weight:700;color:#fff;margin-bottom:2px}
+  #tip .tstock{font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.05em;margin-bottom:5px}
+  #tip .tdesc{font-size:11.5px;color:#c9c6bc;line-height:1.65}
+  #tip .ttag{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;padding:2px 6px;border-radius:10px;margin-right:4px;margin-bottom:4px}
+  /* 篩選器面板 */
+  #filter-panel .fgroup{margin-bottom:13px}
+  #filter-panel .ftitle{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+  #filter-panel label{display:flex;align-items:center;gap:7px;font-size:12px;color:#c9c6bc;padding:3px 0;cursor:pointer;line-height:1.4}
+  #filter-panel label:hover{color:#fff}
+  #filter-panel input[type=checkbox]{accent-color:#e8c25a;cursor:pointer;flex:none}
+  /* 儀表板 */
+  #dashboard .dnum{color:#e8c25a;font-weight:600}
+  #dashboard .drow{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  #dashboard .dtitle{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>AI 硬體供應鏈關係網</h1>
+    <span class="tag">v7</span>
+    <span class="sub">21 大分類・368 檔台廠・111 法說 / 393 時程 / 178 逆風(v8 最終版)</span>
+  </div>
+  <div class="controls">
+    <button class="btn" id="btn-prev" title="上一步" style="opacity:.35">◀</button>
+    <button class="btn" id="btn-next" title="下一步" style="opacity:.35">▶</button>
+    <input type="text" id="search-box" list="search-list" placeholder="🔍 搜尋公司/股號/技術" autocomplete="off"
+      style="font-family:var(--mono);font-size:11.5px;color:var(--ink);background:rgba(20,22,29,.8);border:1px solid var(--border);padding:7px 11px;border-radius:7px;min-width:200px;outline:none">
+    <datalist id="search-list"></datalist>
+    <button class="btn" id="btn-back" style="display:none;background:var(--rel);border-color:var(--rel);color:#1a0c08">← 回到全局</button>
+    <button class="btn" id="btn-chain" style="background:#46cdd6;border-color:#46cdd6;color:#0a1a1f">供應鏈視圖</button>
+    <button class="btn" id="btn-panel" title="切換:點節點是否自動彈詳細欄">📋 詳細欄:關</button>
+    <button class="btn" id="btn-timing" title="顯示時程標記">📅 時程</button>
+    <button class="btn" id="btn-watch" title="我的關注清單(點面板⭐加入)">⭐ 關注 0</button>
+    <button class="btn" id="btn-watch-only" title="只顯示關注清單" style="display:none">👁 只看關注</button>
+    <button class="btn" id="btn-filter" title="多條件組合篩選">🔍 篩選</button>
+    <select class="btn" id="story-sel" style="background:#e8c25a;border-color:#e8c25a;color:#1a1408;font-family:var(--mono);padding-right:24px">
+      <option value="">▼ 題材聚焦</option>
+      <option value="nvidia_d">Vera Rubin 受惠鏈</option>
+      <option value="pw_hvdc">800V HVDC 故事線</option>
+      <option value="pkg_glass">玻璃基板 / CoPoS</option>
+      <option value="mat_compound">化合物半導體</option>
+      <option value="net_cpo">CPO 矽光子</option>
+      <option value="aws">AWS Trainium 鏈</option>
+      <option value="google_d">Google TPU 鏈</option>
+      <option value="microsoft">Microsoft Maia 鏈</option>
+      <option value="meta_d">Meta MTIA 鏈</option>
+      <option value="openai">OpenAI 鏈</option>
+      <option value="spacex_d">SpaceX / Starlink</option>
+      <option value="ROBOT">人形機器人</option>
+      <option value="rb_act">機器人致動器(諧波/行星減速機)</option>
+      <option value="ADVPKG">先進封裝 CoWoS</option>
+      <option value="MEM">HBM / 記憶體</option>
+      <option value="THERMAL">散熱 / 液冷</option>
+      <option value="pw_supercap">超級電容 / BBU(GB300)</option>
+      <option value="pw_mlcc_hv">高壓 MLCC</option>
+      <option value="chip_npu">邊緣 AI / NPU</option>
+      <option value="chip_auto">車用 / 自駕 SoC</option>
+      <option value="GRID">缺電題材 / 重電</option>
+      <option value="apple_d">Apple AI 鏈</option>
+      <option value="stargate_d">Stargate 聯盟</option>
+      <option value="humain_d">沙烏地 Humain / 中東 AI</option>
+      <option value="QUANTUM">量子運算</option>
+      <option value="UAV">無人機/國防</option>
+      <option value="MACHINE">高階工具機</option>
+      <option value="EINK">電子紙</option>
+      <option value="CABLE_HV">特高壓電纜</option>
+      <option value="TUNGSTEN">鎢斷供 / 戰略物資</option>
+      <option value="QUARTZ">石英元件</option>
+      <option value="d_aipc">AI PC</option>
+      <option value="d_aiphone">AI 手機</option>
+      <option disabled>──── 特殊篩選 ────</option>
+      <option value="__HOT__">🔥 投資面當紅(50 家)</option>
+      <option value="__T_2026Q__">📅 當下受惠 2026Q1+</option>
+      <option value="__T_2026H__">📅 近期受惠 2026H2</option>
+      <option value="__T_2027__">📅 中期受惠 2027+</option>
+    </select>
+    <button class="btn" id="btn-expand">ROOT 兩層</button>
+    <button class="btn" id="btn-reset">回到起點</button>
+  </div>
+</header>
+<div class="pulse" id="pulse">← 點最左的「AI 硬體供應鏈」開始展開 →</div>
+<svg id="chart"></svg>
+<div class="legend collapsed" id="legend">
+  <button class="lclose" id="lclose" title="收起圖例">✕</button>
+  <h4>節點 Nodes</h4>
+  <div class="row"><span class="nd diamond" style="background:var(--tech)"></span>粗技術(AOI)</div>
+  <div class="row"><span class="nd diamond" style="background:var(--tech-sub)"></span>細分技術</div>
+  <div class="row"><span class="nd diamond" style="background:#c98fe0"></span>檢測標的</div>
+  <div class="row"><span class="nd circle" style="background:var(--co)"></span>台廠(含股號)</div>
+  <div class="row"><span class="nd circle" style="background:var(--co-foreign)"></span>國外龍頭</div>
+  <div class="row"><span class="nd circle" style="background:#3a2f12;border:2px solid #e8c25a"></span>需求方 / 客戶(金邊環)</div>
+  <div class="row"><span class="nd circle" style="background:#a874c9;width:8px;height:8px"></span>有逆風 / 觀察點(點開看面板)</div>
+  <div class="row"><span style="font-size:13px;width:15px;text-align:center">🔥</span>投資面當紅(滑過看 tooltip)</div>
+  <h4>時程標記(📅 切換顯示)</h4>
+  <div class="row"><span class="nd" style="background:#3fae6e;border-radius:3px"></span>2026Q1+ 當下受惠</div>
+  <div class="row"><span class="nd" style="background:#e8c25a;border-radius:3px"></span>2026H2 近期受惠</div>
+  <div class="row"><span class="nd" style="background:#5b8fd6;border-radius:3px"></span>2027+ 中期受惠</div>
+  <h4>連線 Edges</h4>
+  <div class="row"><span class="ln" style="border-top:2px dashed var(--e-sub)"></span>細分(技術→子技術)</div>
+  <div class="row"><span class="ln" style="border-top:2.4px solid var(--e-make)"></span>供應/做(公司→技術)</div>
+  <div class="row"><span class="ln" style="border-top:1.8px solid #5d8a73"></span>合作 / 供需(產業邏輯線)</div>
+  <div class="row"><span class="ln" style="border-top:2.4px dashed #ef6a4a"></span>受惠(技術需求→公司)</div>
+  <div class="row"><span class="ln" style="border-top:2.4px solid #e8c25a"></span>法說會點名(金黃)</div>
+  <div class="row"><span class="ln" style="border-top:3.4px solid #3fae6e"></span>已公開公告訂單(亮綠粗)</div>
+  <div class="hint"><b style="color:#e8c25a">滑過=tooltip,單擊=聚焦一層</b>,雙擊(手機:長按)=展兩層。畫面永遠只看當前局部。「回到起點」回 ROOT。股號僅供辨識,請以券商資料為準。</div>
+</div>
+<button id="lopen" class="show" title="展開圖例">圖例</button>
+<button id="btn-fullscreen" title="收起頂部">⤢</button>
+
+<!-- 篩選器面板 -->
+<div id="filter-panel" style="display:none;position:fixed;top:60px;right:14px;z-index:9;background:rgba(15,17,22,.97);border:1px solid var(--border);border-radius:12px;padding:16px 18px;max-width:280px;backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(0,0,0,.5);max-height:80vh;overflow-y:auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.15em;color:#e8c25a;margin:0">🔍 組合篩選</h4>
+    <button id="filter-close" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0;width:24px;height:24px">✕</button>
+  </div>
+  <div style="font-size:10.5px;color:var(--muted);margin-bottom:11px;line-height:1.5">勾選的條件全部要滿足(AND);受惠題材至少要符合其中一個(OR)</div>
+
+  <div class="fgroup">
+    <div class="ftitle">受惠題材(任一)</div>
+    <label><input type="checkbox" data-filter="theme" value="nvidia_d"> Vera Rubin / Nvidia 鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="aws"> AWS Trainium 鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="google_d"> Google TPU 鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="microsoft"> Microsoft Maia 鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="meta_d"> Meta MTIA 鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="apple_d"> Apple AI 鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="spacex_d"> SpaceX / Starlink</label>
+    <label><input type="checkbox" data-filter="theme" value="stargate_d"> Stargate</label>
+    <label><input type="checkbox" data-filter="theme" value="tsmc"> 台積電擴產鏈</label>
+    <label><input type="checkbox" data-filter="theme" value="pw_hvdc"> 800V HVDC</label>
+    <label><input type="checkbox" data-filter="theme" value="pkg_glass"> 玻璃基板 / CoPoS</label>
+    <label><input type="checkbox" data-filter="theme" value="mat_compound"> 化合物半導體</label>
+    <label><input type="checkbox" data-filter="theme" value="net_cpo"> CPO 矽光子</label>
+    <label><input type="checkbox" data-filter="theme" value="ROBOT"> 人形機器人</label>
+    <label><input type="checkbox" data-filter="theme" value="UAV"> 無人機 / 國防</label>
+    <label><input type="checkbox" data-filter="theme" value="MACHINE"> 高階工具機</label>
+    <label><input type="checkbox" data-filter="theme" value="EINK"> 電子紙</label>
+    <label><input type="checkbox" data-filter="theme" value="CABLE_HV"> 特高壓電纜</label>
+    <label><input type="checkbox" data-filter="theme" value="TUNGSTEN"> 鎢斷供 / 戰略物資</label>
+    <label><input type="checkbox" data-filter="theme" value="QUARTZ"> 石英元件</label>
+    <label><input type="checkbox" data-filter="theme" value="QUANTUM"> 量子運算</label>
+  </div>
+
+  <div class="fgroup">
+    <div class="ftitle">時程</div>
+    <label><input type="checkbox" data-filter="timing" value="2026Q"> 當下受惠(2026Q1+)</label>
+    <label><input type="checkbox" data-filter="timing" value="2026H"> 近期(2026H2)</label>
+    <label><input type="checkbox" data-filter="timing" value="2027"> 中期(2027+)</label>
+  </div>
+
+  <div class="fgroup">
+    <div class="ftitle">屬性</div>
+    <label><input type="checkbox" data-filter="attr" value="hot"> 🔥 投資面當紅</label>
+    <label><input type="checkbox" data-filter="attr" value="fa"> 有法說級訂單</label>
+    <label><input type="checkbox" data-filter="attr" value="nowarn"> 無逆風訊號</label>
+    <label><input type="checkbox" data-filter="attr" value="haswarn"> 有逆風訊號</label>
+    <label><input type="checkbox" data-filter="attr" value="watch"> 我的關注清單</label>
+  </div>
+
+  <div style="display:flex;gap:7px;margin-top:14px">
+    <button id="filter-apply" style="flex:1;padding:8px;font-family:var(--mono);font-size:11px;background:#e8c25a;color:#1a1408;border:none;border-radius:6px;cursor:pointer;font-weight:600">套用篩選</button>
+    <button id="filter-clear" style="padding:8px 12px;font-family:var(--mono);font-size:11px;background:transparent;color:#c9c6bc;border:1px solid var(--border);border-radius:6px;cursor:pointer">清空</button>
+  </div>
+  <div id="filter-result" style="margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--mono);text-align:center"></div>
+</div>
+
+<!-- 儀表板 -->
+<div id="dashboard" style="position:fixed;left:20px;top:62px;z-index:6;background:rgba(15,17,22,.86);border:1px solid var(--border);border-radius:10px;padding:9px 13px;backdrop-filter:blur(4px);font-family:var(--mono);font-size:10.5px;color:#c9c6bc;line-height:1.7;max-width:200px"></div>
+<div id="tip"></div>
+<aside id="panel">
+  <button class="pclose" id="pclose">✕</button>
+  <span class="ptag" id="ptag">NODE</span>
+  <h2 id="ptitle">—</h2>
+  <div class="pstock" id="pstock"></div>
+  <p class="pdesc" id="pdesc"></p>
+  <div id="pchildren"></div>
+</aside>
+<footer>主要玩家地圖・非完整清單 ・ 非投資建議 ・ 股號請自行核對 ・ 2026.05</footer>
+
+<script>
+/* ============ 資料(與 v1 相同) ============ */
+const NODES = [
+  {id:"ROOT", name:"AI 硬體供應鏈", type:"root", desc:"從 AI 晶片的先進封裝,到確保良率的檢測/測試設備。需求由 AI 晶片往下拉動:先進封裝(CoWoS)爆發 → 帶動檢測/測試需求 → 台廠設備商受惠。此為地圖總根節點,將逐步往上接更多環節(晶圓代工、伺服器、散熱…)。"},
+
+  // ===== 大分類層(第一層,掛在 ROOT 之下) =====
+  {id:"INSPECT", name:"檢測 / 測試設備", type:"tech", desc:"AI 伺服器與先進封裝推動『全檢』與高難度測試需求爆發,台灣在光學檢測(AOI)、X-ray、電測、半導體測試與測試介面全面卡位。點開看六大檢測技術。"},
+  {id:"ADVPKG", name:"先進封裝 CoWoS", type:"tech", desc:"AI 晶片效能的關鍵。台積電 CoWoS 產能供不應求(2027 年前持續吃緊),訂單外溢到封測廠、ABF 載板、封裝設備與材料。這是『檢測需求』的最大上游來源。"},
+
+  // ===== 粗技術(第一層,掛在 ROOT 之下) =====
+  {id:"AOI", name:"AOI 自動光學檢測", type:"tech", desc:"用機械視覺(光學取像+影像處理)做非接觸式瑕疵檢測與量測。AI 伺服器、先進封裝、高階載板推動『全檢』需求爆發,量測已從 2D 走向 3D。"},
+  {id:"AXI", name:"AXI X-ray 檢測", type:"tech", desc:"以 X 光檢測肉眼/光學看不到的內部接點(BGA 虛焊、PTH 上錫、IGBT 氣泡)。德律 AXI 全球坐二望一,緊追日本 Omron。"},
+  {id:"SPI", name:"SPI 錫膏檢測", type:"tech", desc:"SMT 製程中印刷錫膏的 3D 檢測,印刷品質是 SMT 瓶頸;德律、致茂等皆有布局。"},
+  {id:"ICT", name:"電測 / ICT 電路測試", type:"tech", desc:"電路板組裝(PCBA)後的電性測試(ICT/飛針/BT 電路板測試機)。德律為全球唯一一條龍電路組裝檢測設備業者。"},
+  {id:"SEMI_TEST", name:"半導體測試(測試機/分選機)", type:"tech", desc:"晶片封裝後的電性/功能測試,含測試機(tester)與分選機(handler)。AI 高功耗晶片推升溫控分選機需求。國外龍頭愛德萬。"},
+  {id:"TEST_IF", name:"測試介面(探針卡/載板)", type:"tech", desc:"晶圓測試階段測試機與晶片之間的介面,高度客製、不可替代。AI 高腳數晶片推動 MEMS/垂直探針卡;台股千金股密集區。"},
+  {id:"pcb_aoi", name:"PCB / 載板 AOI", type:"subtech", desc:"檢測 PCB、HDI、IC 載板的線路、微盲孔、mSAP 細線路。AI 伺服器板高層數、細線路升級直接拉動需求。"},
+  {id:"semi_aoi", name:"半導體 / 晶圓 AOI", type:"subtech", desc:"晶圓級外觀與線路檢測;3nm/2nm GAA 結構帶來線寬、側壁角、回蝕等新檢測挑戰,技術門檻最高。"},
+  {id:"adv_pkg_aoi", name:"先進封裝 AOI", type:"subtech", desc:"CoWoS/FOPLP/CoPoS 等封裝檢測:微凸塊(bump)、RDL 重佈線、Interposer、Underfill、Die Saw 到 Final。『一顆都不能壞』,2025 起爆發。"},
+  {id:"panel_aoi", name:"面板 / 顯示器 AOI", type:"subtech", desc:"LCD/顯示器光學檢測;也是面板級封裝(FOPLP)大面積檢測的技術基礎,掃描面積比晶圓級大數倍。"},
+  {id:"aoi_3d_spi", name:"3D AOI / SPI", type:"subtech", desc:"立體輪廓量測與錫膏檢測(Solder Paste Inspection);面板級封裝翹曲嚴重,須 3D 輪廓與高補償對焦。"},
+  {id:"cpo_aoi", name:"CPO / 光學元件檢測", type:"subtech", desc:"CPO(共封裝光學)量產的關鍵瓶頸之一;光路對位與耦合檢測,屬新藍海,設備商陸續卡位。"},
+
+  // === 第三層:檢測標的(leaf-tech) ===
+  // 先進封裝 AOI 之下
+  {id:"t_bump", name:"微凸塊 Bump 檢測", type:"target", desc:"微凸塊尺寸/間距越縮越小,bump 高度、共平面度(coplanarity)是 CoWoS 良率關鍵。"},
+  {id:"t_rdl", name:"RDL 重佈線檢測", type:"target", desc:"重佈線層,先進封裝技術門檻最高的一段(濕製程+黃光),線路缺陷檢測需求大。"},
+  {id:"t_warpage", name:"翹曲 Warpage 量測", type:"target", desc:"FOPLP/CoPoS 大面積基板受熱翹曲嚴重,須 3D 輪廓量測+動態對焦補償。"},
+  {id:"t_interposer", name:"中介層 / Die 貼合", type:"target", desc:"Interposer、Die-to-Die 貼合對位與堆疊檢測(2.5D/3D)。"},
+  // 半導體/晶圓 AOI 之下
+  {id:"t_waferdefect", name:"晶圓表面缺陷", type:"target", desc:"晶圓外觀刮痕、金屬殘留、顆粒等缺陷檢測,確保良率。"},
+  {id:"t_cd_overlay", name:"線寬 CD / 疊對 Overlay", type:"target", desc:"關鍵尺寸量測與圖形疊對,先進製程(3/2nm)門檻最高。"},
+  {id:"t_failure", name:"故障 / 材料分析", type:"target", desc:"失效分析、可靠度驗證、材料分析;2nm 與矽光子推動需求。"},
+  // PCB/載板 AOI 之下
+  {id:"t_pcb_trace", name:"PCB 線路檢測", type:"target", desc:"PCB/HDI 線路、微盲孔、mSAP 細線路缺陷檢測。"},
+  {id:"t_substrate", name:"ABF 載板檢測", type:"target", desc:"大尺寸 ABF/BT 載板線路與外觀檢測,AI 晶片帶動升級。"},
+  // 面板 / 3D-SPI / CPO 之下
+  {id:"t_panel_defect", name:"面板光學檢測", type:"target", desc:"LCD/顯示器 mura、亮點、線路缺陷檢測。"},
+  {id:"t_spi", name:"錫膏 SPI / AXI", type:"target", desc:"錫膏印刷檢測與 X-ray 內部接點檢測(BGA/隱藏焊點)。"},
+  {id:"t_cpo_couple", name:"光路對位 / 耦合檢測", type:"target", desc:"CPO 光纖對位與耦合效率檢測,量產新藍海。"},
+
+  // ===== 新粗技術之下的細分(第二層) =====
+  // AXI X-ray
+  {id:"axi_bga", name:"BGA / 隱藏焊點 X-ray", type:"subtech", desc:"檢測 BGA、PTH、IGBT 等肉眼看不到的內部焊接缺陷(虛焊、氣泡、連錫)。"},
+  {id:"axi_3dct", name:"3D CT 斷層檢測", type:"subtech", desc:"具 CT 功能的 X-ray,重建高解析切層,檢測雙面板/遮蔽嚴重區域。"},
+  // SPI
+  {id:"spi_3d", name:"3D 錫膏量測", type:"subtech", desc:"印刷後錫膏體積/高度/偏移的 3D 量測,SMT 良率第一道關卡。"},
+  // ICT 電測
+  {id:"ict_flying", name:"飛針 / ICT 測試", type:"subtech", desc:"電路板組裝後電性測試(開短路、元件值)。"},
+  {id:"ict_bt", name:"電路板測試機 BT", type:"subtech", desc:"PCBA 功能與電性測試機台。"},
+  // 半導體測試
+  {id:"st_tester", name:"測試機 Tester", type:"subtech", desc:"晶片電性/功能測試主機;國外愛德萬、Teradyne 主導。"},
+  {id:"st_handler", name:"分選機 Handler", type:"subtech", desc:"晶片測試的溫控與分選;AI 高功耗晶片推升主動溫控(ATC)需求。"},
+  // 測試介面
+  {id:"if_probecard", name:"探針卡 Probe Card", type:"subtech", desc:"晶圓測試核心耗材;AI 高腳數晶片推動 MEMS/垂直式高單價探針卡。【主要玩家,非完整清單】台廠尚有更多中小型/興櫃廠未盡列。"},
+  {id:"if_loadboard", name:"測試載板 Load Board", type:"subtech", desc:"晶圓/老化/系統級測試載板,大電流高速需求攀升。"},
+
+  {id:"machvision", name:"牧德", stock:"3563", type:"co", tw:true, desc:"【本業】牧德 AOI 自動光學檢測;【轉型】先進封裝 AOI 切入日月光;【題材】公告級訂單(日月光採購 3.71 億+參股),但 AOI 競爭加劇。", warn:"牧德 AOI 雖獲日月光採購,但 AOI 競爭加劇(德律/由田/閎康)。", timing:"2026Q1+"},
+  {id:"test_research", name:"德律", stock:"3030", type:"co", tw:true, desc:"【本業】德律 AOI/AXI/ICT 全方位檢測設備;【轉型】先進封裝檢測切入;【題材】台積電擴產直接受惠。", timing:"2026Q1+"},
+  {id:"utechzone", name:"由田新技", stock:"3455", type:"co", tw:true, desc:"【本業】由田 AOI 自動光學檢測;【題材】台積電擴產直接受惠。", timing:"2026Q1+"},
+  {id:"gpm", name:"均豪", stock:"5443", type:"co", tw:true, desc:"【本業】均豪精密 AOI/翹曲量測;【題材】先進封裝量測規格升級受惠。", timing:"2026Q1+"},
+  {id:"crystalwise", name:"晶彩科", stock:"3535", type:"co", tw:true, desc:"【本業】RFID/NFC 標籤晶片封裝;【題材】被動元件漲價類股漲幅外溢受益。", timing:"2026H2"},
+  {id:"allring", name:"萬潤", stock:"6187", type:"co", tw:true, desc:"【本業】萬潤檢測設備 + 被動元件設備;【轉型】設備在地化政策受惠;【題材】高盛重新定價,但政策進度為主要觀察。", warn:"萬潤檢測雖具高盛重新定價,但設備在地化政策進度為主要觀察。", timing:"2026H2"},
+  {id:"all_ring2", name:"竑騰", stock:"7751", type:"co", tw:true, desc:"【本業】竑騰半導體設備(萬潤集團);【題材】半導體擴產直接受惠。", timing:"2026H2"},
+  {id:"lhwingtech", name:"聯策", stock:"6658", type:"co", tw:true, desc:"【本業】聯策 ABF 載板量測 + PCB 線路檢測;【題材】先進封裝量測規格升級受惠。", timing:"2026Q1+"},
+  {id:"berylinno", name:"倍利科", stock:"7822", type:"co", tw:true, desc:"【本業】倍利科 AOM/AOI 自動光學檢量測設備 + AI 醫療;【轉型】台積電認證新星;【題材】認證持續性需驗證,規模仍小。", warn:"倍利科興櫃新星,規模仍小;客戶台積電認證持續性需驗證。", timing:"2026H2"},
+  {id:"taliang", name:"大量", stock:"3167", type:"co", tw:true, desc:"【本業】大量檢測設備;【題材】先進封裝檢測規格升級受惠。", timing:"2026Q1+"},
+  {id:"genmega", name:"政美應用", stock:"7853", type:"co", tw:true, desc:"【本業】政美應用 AOI/翹曲量測;【題材】先進封裝量測+面板光學受惠。", timing:"2026Q1+"},
+  {id:"hermes_test", name:"漢測", stock:"7856", type:"co", tw:true, desc:"【本業】漢測薄膜探針卡 + 雷射清針機;【題材】CoWoS 訂單能見度受台積電節奏主導,規模小。", warn:"漢測薄膜探針卡為利基,但規模小;CoWoS 訂單能見度受台積電節奏主導。", timing:"2026H2"},
+  {id:"chroma", name:"致茂", stock:"2360", type:"co", tw:true, desc:"【本業】致茂半導體 + Photonics 測試解決方案 + 自動化檢測設備;【題材】AI/半導體擴產直接受惠,本益比/同業平均皆領先。", timing:"2026Q1+"},
+  {id:"materials_a", name:"閎康", stock:"3587", type:"co", tw:true, desc:"【本業】閎康材料分析 + 半導體驗證;【題材】先進製程驗證受惠。", timing:"2026H2"},
+  {id:"itc", name:"宜特", stock:"3289", type:"co", tw:true, desc:"【本業】宜特 IC 失效分析 + 可靠度驗證;【題材】CPO 矽光子 + 先進封裝驗證受惠。", timing:"2026Q1+"},
+  {id:"mastec", name:"汎銓", stock:"6830", type:"co", tw:true, desc:"【本業】汎銓材料分析 + 半導體驗證;【題材】先進製程驗證受惠。", timing:"2026Q1+"},
+  {id:"hongjing", name:"鴻勁精密", stock:"7769", type:"co", tw:true, desc:"【本業】鴻勁主動溫控分選機(ATC handler);【轉型】高功耗 AI 伺服器/HPC/車用晶片測試;【題材】2025 EPS 約 75.7 元,擴產供北美 AI 客戶,興櫃股王。", timing:"2026Q1+"},
+  {id:"wintest", name:"穎崴", stock:"6515", type:"co", tw:true, desc:"【本業】晶圓測試(注意:此 id 對應穎崴 6515);【題材】CSP ASIC 探針卡受惠。", timing:"2026H2"},
+  {id:"mpi", name:"旺矽", stock:"6223", type:"co", tw:true, desc:"【本業】旺矽探針卡 + 光電元件自動化測試 + 先進半導體測試;【轉型】Vera Rubin 測試切入;【題材】法說級訂單,但與穎崴/中華精測競爭加劇。", warn:"旺矽探針卡雖切入 Vera Rubin 測試,但與穎崴/中華精測競爭加劇。", timing:"2026Q1+"},
+  {id:"chpt", name:"中華精測", stock:"6510", type:"co", tw:true, desc:"【本業】中華精測探針卡(自製 MEMS 探針);【轉型】CSP ASIC 探針卡主力;【題材】法說級訂單,但毛利率受訂單分散影響。", warn:"中華精測探針卡客戶 CSP ASIC 為大機會,但毛利率受訂單分散影響。", timing:"2026Q1+"},
+  {id:"yljt", name:"雍智科技", stock:"6683", type:"co", tw:true, desc:"【本業】雍智科技載板+探針卡組裝(SFT/老化測試);【轉型】Google TPU 測試鏈打入;【題材】2025 營收連續創高,聯發科合作緊密,但客戶集中。", warn:"雍智科技載板與探針卡客戶集中,Google TPU 訂單能見度為主要觀察。", timing:"2026Q1+"},
+  {id:"leeno", name:"勵威電子", stock:"5246", type:"co", tw:true, desc:"【本業】勵威電子 MEMS 探針卡(欣興+鴻海合作);【題材】高雄 VPC 新廠投產時程關鍵,連續虧損 2026 盈虧平衡點為觀察。", timing:"2026H2"},
+  {id:"ctech", name:"創新服務", stock:"7828", type:"co", tw:true, desc:"【本業】創新服務興櫃新興股,TGV 業務切入;【題材】規模仍小,客戶台積電認證持續性需驗證。", warn:"創新服務興櫃股小型廠,規模有限;TGV 業務尚未放量。", timing:"2026H2"},
+  {id:"advantest", name:"愛德萬 Advantest", type:"co", foreign:true, desc:"全球測試機(tester)龍頭;AI 晶片測試需求帶動股價市值大漲。台廠測試介面的關鍵搭配對象。"},
+  {id:"tsmc", name:"台積電", stock:"2330", type:"co", tw:true, demand:true, desc:"【本業】台積電全球晶圓代工龍頭(N3/N2);【轉型】CoWoS/SoIC 先進封裝;【題材】AI 全鏈核心,但 N3/N2 漲價持續性 + 地緣政治為觀察點。", warn:"台積電本身為產業基礎建設,但 N3/N2 漲價持續性+地緣政治(美中對抗)為主要觀察。", timing:"2026Q1+"},
+  {id:"ase", name:"日月光投控", stock:"3711", type:"co", tw:true, demand:true, desc:"【本業】日月光投控 OSAT 封測全球龍頭;【轉型】CoWoS 與台積電競合(亦切入後段先進封裝);【題材】半導體封測景氣連動 + AI 後段封測直接受惠;台積電合作為主要觀察。", warn:"日月光封測雖穩定,但 CoWoS 切入時點與台積電競合關係為主要觀察。", timing:"2026Q1+"},
+  {id:"kla", name:"KLA 科磊", type:"co", foreign:true, desc:"全球半導體量檢測龍頭(含原 Orbotech 的 PCB/載板檢測)。台廠的主要外商對手。"},
+  {id:"onto", name:"Onto Innovation", type:"co", foreign:true, desc:"半導體量檢測大廠。"},
+  {id:"camtek", name:"Camtek", type:"co", foreign:true, desc:"先進封裝/晶圓檢測設備。"},
+
+  // ===== 先進封裝 CoWoS 之下的環節(掛在 ADVPKG) =====
+  {id:"pkg_foundry", name:"晶圓代工 + CoWoS", type:"subtech", desc:"先進封裝的核心製造,台積電 CoWoS/SoIC 主導,產能供不應求至 2027 年。"},
+  {id:"pkg_osat", name:"封測 OSAT", type:"subtech", desc:"接收台積電外溢訂單的專業封測廠;AI 測試營收占比快速攀升。"},
+  {id:"pkg_abf", name:"ABF 載板", type:"subtech", desc:"AI GPU/ASIC 的必要基板,2030 供給缺口估擴大至 22%,已脫離傳統 PCB 循環。"},
+  {id:"pkg_equip", name:"封裝設備 / 材料", type:"subtech", desc:"CoWoS 擴產直接受惠的『軍火供應商』:晶圓清洗、濕製程設備、光罩盒等。"},
+  {id:"pkg_glass", name:"玻璃基板 / CoPoS", type:"subtech", desc:"2026 業界關鍵節點:Intel 量產 Xeon 6+ 玻璃核心、台積電 CoPoS 試產、Apple Baltra 測試。長遠以玻璃基板取代矽中介層,2026~2030 進入量產期。台灣是 TGV 供應鏈金字塔的核心戰場。"},
+
+  // 玻璃基板第三層(四層金字塔)
+  {id:"gcs_material", name:"玻璃母材 / 前加工", type:"target", desc:"特種玻璃配方熔製、大面板超薄化、切割與邊緣強化。康寧/AGC 國際,台廠:台玻、正達、悅城。"},
+  {id:"gcs_tgv", name:"TGV 雷射鑽孔 / 蝕刻", type:"target", desc:"玻璃通孔(TGV)最硬的成孔環節,雷射改質+蝕刻為兩大主流;台積電 CoPoS 量產關鍵。"},
+  {id:"gcs_process", name:"TGV 鍍膜 / 烘烤 / 壓膜", type:"target", desc:"TGV 後段製程:真空濺鍍 RDL 晶種層、熱風烤箱、UV/IR 乾燥、真空壓膜等大面積均勻製程。"},
+  {id:"gcs_inspect", name:"玻璃基板檢測", type:"target", desc:"TGV 改質均勻度、孔壁粗糙度、玻璃微裂紋缺陷檢測;非破壞性雷射改質檢測為新藍海。"},
+  {id:"gcs_assembly", name:"玻璃基板組裝 / 認證", type:"target", desc:"FOPLP 量產設備、TGV 中介層方案、終端組裝;產業 2026~2028 進入小量放量。"},
+
+  // 玻璃基板台廠 - 玻璃母材
+  {id:"taiwan_glass", name:"台玻", stock:"1802", type:"co", tw:true, desc:"【本業】台玻玻璃材料;【題材】玻璃基板上游材料外溢受益。", timing:"2027"},
+  {id:"genda", name:"正達", stock:"3149", type:"co", tw:true, desc:"【本業】正達國際玻璃材料;【轉型】FOPLP 玻璃基板上游;【題材】玻璃基板量產時程影響。", timing:"2027", warn:"熱成型 TGV 專利雖有,但康寧/AGC 國際大廠主導,正達能搶到多少實際訂單仍待驗證。"},
+  {id:"yueh_chen", name:"悅城", stock:"6405", type:"co", tw:true, desc:"【本業】悅城被動元件(注意:不是悅城建設);【題材】被動元件漲價類股。", timing:"2026H2"},
+  {id:"zhongyou", name:"中釉", stock:"1809", type:"co", tw:true, desc:"【本業】中釉被動元件相關;【題材】被動元件漲價類股外溢受益。", timing:"2026H2"},
+
+  // 玻璃基板台廠 - TGV 設備/製程
+  {id:"thinkpower", name:"鈦昇", stock:"8027", type:"co", tw:true, desc:"【本業】鈦昇 TGV 雷射鑽孔/改質設備龍頭;【轉型】Intel 玻璃基板雷射改質設備(2026 商轉首發);【題材】法說級 Intel 合作,但 Intel 玻璃基板量產時程多次延後是歷史風險。", timing:"2026H2", warn:"與 Intel 合作雖領先,但 Intel 玻璃基板實際量產時程多次延後是歷史風險;另 700×700mm FOPLP 客戶分散度待觀察。"},
+  {id:"chuni", name:"群翊", stock:"6664", type:"co", tw:true, desc:"【本業】群翊 ABF/BT 載板壓膜機 + 玻璃基板鍍膜烘烤;【題材】玻璃基板 + 先進封裝雙軌受惠。", timing:"2026H2"},
+  {id:"youwei", name:"友威科技", stock:"3580", type:"co", tw:true, desc:"【本業】友威科真空濺鍍設備 + 真空鍍膜代工;【題材】玻璃基板 RDL 晶種層濺鍍 PVD 設備直接受惠。", timing:"2026H2"},
+  {id:"laserk", name:"雷科", stock:"6207", type:"co", tw:true, desc:"【本業】雷科雷射加工設備;【題材】玻璃基板雷射改質設備外溢受益。", timing:"2026H2"},
+  {id:"eastsoft", name:"東捷", stock:"8064", type:"co", tw:true, desc:"【本業】東捷科技 LCD 自動化設備;【轉型】FOPLP 量產設備跨入玻璃基板鏈;【題材】先進封裝設備規格升級受惠。", timing:"2027"},
+
+  // 玻璃基板台廠 - 檢測/組裝/驗證
+  {id:"weihua", name:"蔚華科", stock:"3055", type:"co", tw:true, desc:"【本業】蔚華科 SpiroxLTS TGV 非破壞性雷射改質與玻璃穿孔檢測;【題材】TGV 製程參數控制革命性突破。", timing:"2027"},
+  {id:"jincheng", name:"晶呈科技", stock:"4768", type:"co", tw:true, desc:"【本業】晶呈科技 TGV 通孔金屬填充技術專利 + LADY 氣相蝕刻;【題材】玻璃基板成孔關鍵技術。", warn:"TGV 通孔填充技術門檻雖高,但 Intel 玻璃基板量產時程多次遞延,實質貢獻時點不確定。", timing:"2026H2"},
+  {id:"tpk", name:"TPK-KY", stock:"3673", type:"co", tw:true, desc:"【本業】TPK-KY 宸鴻觸控面板大廠;【轉型】先進封裝跨界;【題材】Apple 鏈受惠,觸控本業景氣循環大。", timing:"2027"},
+  {id:"hannstar", name:"彩晶", stock:"6116", type:"co", tw:true, desc:"【本業】瀚宇彩晶面板廠;【轉型】跨界先進封裝/玻璃基板;【題材】實質貢獻有限,面板本業承壓。", timing:"2026H2", warn:"面板廠轉型先進封裝/玻璃基板還在早期階段,實質貢獻有限;面板本業景氣承壓。"},
+
+  // 先進封裝台廠(龍頭)
+  {id:"pkg_tsmc", name:"台積電", stock:"2330", type:"co", tw:true, desc:"【本業】台積電先進封裝(CoWoS-S/L、SoIC、FOPLP);【題材】AI 晶片 + HBM 整合核心。", timing:"2026Q1+"},
+  {id:"pkg_ase", name:"日月光投控", stock:"3711", type:"co", tw:true, desc:"【本業】日月光投控先進封裝;【題材】CoWoS 切入時點與台積電競合關係為主要觀察。", timing:"2026Q1+"},
+  {id:"kyec", name:"京元電子", stock:"2449", type:"co", tw:true, desc:"【本業】京元電子半導體測試大廠;【轉型】HBM 測試切入;【題材】法說級 HBM 訂單,但 CSP 直接砍價壓力為觀察。", warn:"HBM 測試 CSP 直接砍價壓力;產能擴張速度待觀察。", timing:"2026Q1+"},
+  {id:"powertech", name:"力成", stock:"6239", type:"co", tw:true, desc:"【本業】力成 DRAM/Flash 封測大廠;【轉型】切入 HBM 封測與 FOPLP;【題材】HBM 封測台廠仍處邊陲,韓系主導;FOPLP 與台積電/日月光競合風險。", timing:"2026Q1+", warn:"HBM 封測台廠主要切入點,惟韓系 SK 海力士/三星仍主導 HBM 整體封裝;FOPLP 與台積電/日月光競合。"},
+  {id:"unimicron", name:"欣興", stock:"3037", type:"co", tw:true, desc:"【本業】欣興 ABF 載板全球前三大;【轉型】AI GPU 載板;【題材】ABF 載板規格升級受惠。", timing:"2026Q1+"},
+  {id:"nanya_pcb", name:"南電", stock:"8046", type:"co", tw:true, desc:"【本業】南電 ABF 載板;【轉型】AI GPU 載板;【題材】台積電+Nvidia 載板供應鏈。", timing:"2026Q1+"},
+  {id:"kinsus", name:"景碩", stock:"3189", type:"co", tw:true, desc:"【本業】景碩 ABF 載板;【題材】AI 載板規格升級受惠,但與欣興/南電競爭。", timing:"2026Q1+"},
+  {id:"gallant", name:"弘塑", stock:"3131", type:"co", tw:true, desc:"【本業】弘塑半導體濕製程設備 + 蝕刻液/光阻液代理 + Pump 維修;【題材】台積電擴產受惠,本益比 < 20 偏低估。", timing:"2026Q1+"},
+  {id:"sunfter", name:"辛耘", stock:"3583", type:"co", tw:true, desc:"【本業】辛耘濕製程設備;【題材】先進封裝濕製程在地化受惠。", timing:"2026Q1+"},
+  {id:"galaxy", name:"家登精密", stock:"3680", type:"co", tw:true, desc:"【本業】家登精密 EUV pod + 載具;【轉型】先進封裝設備在地化;【題材】台積電擴產直接受惠。", timing:"2026Q1+"},
+
+  // ===== 新增大分類(掛在 ROOT,depth1) =====
+  {id:"CHIP", name:"AI 晶片 / ASIC 設計", type:"tech", desc:"GPU 與客製化 ASIC。國外 Nvidia/Broadcom 主導;台灣 ASIC 設計服務三雄深度參與雲端自研晶片,是上游最強的結構性成長線。需求往下拉動先進封裝與 HBM。"},
+  {id:"MEM", name:"HBM / 記憶體", type:"tech", desc:"AI 晶片的咽喉。高階 HBM 由韓美三家主導,供需缺口延續數年;台廠以 DRAM、利基記憶體與模組切入。"},
+  {id:"SERVER", name:"AI 伺服器 / 系統組裝", type:"tech", desc:"台灣最核心的主場。GB200/GB300 機櫃幾乎由台廠包辦,全球無可替代。它是整條鏈的需求火車頭——往下拉動晶片、散熱、電源、連接器、PCB、網路。"},
+  {id:"THERMAL", name:"散熱 / 液冷", type:"tech", desc:"GB300 單櫃功耗逼近 600kW,液冷由選配變標配,滲透率 2026 衝上 40~50%。台灣散熱廠站上前所未有高度。"},
+  {id:"POWER", name:"電源 / 機櫃供電", type:"tech", desc:"從機櫃 800V HVDC 到供電模組,台廠是 AI 伺服器供電的全端要角,能見度看到 2027~2028。"},
+  {id:"CONN", name:"連接器 / 機構件", type:"tech", desc:"高速訊號互連與機構件;台廠在 socket、滑軌、機殼、高速線束各擁龍頭。"},
+  {id:"PCBCCL", name:"PCB / CCL 材料", type:"tech", desc:"AI 伺服器板規格大跳升,高速高層數帶動 CCL、HVLP 銅箔、M9 玻纖布升級。"},
+  {id:"NET", name:"網路 / 交換器 / CPO", type:"tech", desc:"算力擴張的下一戰場。800G→1.6T 交換器升級,台廠切入白牌交換器 ODM 與光通訊/CPO。"},
+  {id:"GRID", name:"重電 / 電力 / 電網", type:"tech", desc:"2026 瓶頸已從『缺晶片』轉為『缺電』。AI 資料中心擴建拉動,大型變壓器交期約 2.5 年,重電四雄訂單滿到 2027~2028。"},
+  {id:"MATERIAL", name:"重要上游材料", type:"tech", desc:"AI 硬體的基礎建設之基礎。化合物半導體(SiC/GaN/InP)是高壓、高頻、光通訊的材料平台;矽晶圓/SOI 是所有晶片的基底;特化/特氣是 2nm 與 CoWoS 製程的關鍵耗材,在地化是 2026 大趨勢。"},
+  {id:"ROBOT", name:"機器人 / 實體 AI", type:"tech", desc:"AI 從雲端走進實體世界的關鍵載體。台積電魏哲家:人形機器人市場規模未來可望達電動車 10 倍。台灣供應鏈分上中下游:上游關鍵零組件(減速器、伺服馬達、線性傳動)、中游 AI 視覺與系統整合、下游協作機器人整機。"},
+  {id:"SAT", name:"低軌衛星 / 太空", type:"tech", desc:"2026 SpaceX IPO 估值上看 1.5 兆美元,Starlink 在軌衛星突破萬顆。台灣供應鏈深度嵌入 Starlink 生態系超過 10 年:華通是 Starlink PCB 龍頭(市佔約 9 成)、昇達科衛星營收占比 8 成、群創 FOPLP 切入 Chip-First 衛星封裝。"},
+
+  // ----- 各分類的環節(subtech, depth2) -----
+  {id:"chip_asic", name:"ASIC 設計服務", type:"subtech", desc:"替雲端業者設計客製化 AI 晶片(turn-key),含 NRE 與量產。"},
+  {id:"chip_gpu", name:"GPU / 晶片龍頭", type:"subtech", desc:"通用 AI 加速器,國外主導。"},
+  {id:"mem_dram", name:"DRAM / 模組", type:"subtech", desc:"台系 DRAM 與記憶體模組。"},
+  {id:"mem_hbm", name:"HBM 高頻寬記憶體", type:"subtech", desc:"AI 晶片專用,韓美三雄主導。"},
+  {id:"srv_odm", name:"整機 ODM / 機櫃", type:"subtech", desc:"GB200/GB300 整櫃輸出,單櫃售價 200~300 萬美元。"},
+  {id:"th_liquid", name:"液冷(水冷板/CDU)", type:"subtech", desc:"冷卻分配單元 CDU 與水冷板 Cold Plate,2026 散熱主軸。Vera Rubin 全液冷,單櫃液冷產值上看 6.5 萬美元。"},
+  {id:"th_air", name:"風冷 / 散熱模組", type:"subtech", desc:"均熱片、熱管、3D VC、風扇。"},
+
+  // 散熱第三層(target)
+  {id:"th_coldplate", name:"水冷板 Cold Plate", type:"target", desc:"直接貼合 GPU 的冷板,2026 絕對主流(單相冷水板)。"},
+  {id:"th_cdu", name:"CDU 冷卻分配單元", type:"target", desc:"液冷系統心臟,水對水 CDU 高毛利。"},
+  {id:"th_qd", name:"快接頭 QD / 分歧管 Manifold", type:"target", desc:"防漏液的『生命線』,高階 Manifold 高毛利。"},
+  {id:"th_ihs", name:"均熱片 IHS / TIM", type:"target", desc:"Vera Rubin 需配合金屬 TIM2,IHS 均熱片 ASP 估增三倍。"},
+  {id:"th_immersion", name:"浸沒式液冷", type:"target", desc:"長線終極方案,部分廠與 Intel 合作開發。"},
+  {id:"pw_module", name:"電源模組 / HVDC", type:"subtech", desc:"800V HVDC、機櫃電源、供電模組。"},
+  {id:"cn_socket", name:"Socket / 滑軌 / 機殼 / 線束", type:"subtech", desc:"GPU/CPU socket、伺服器滑軌、機殼、高速 cable。"},
+  {id:"pcb_hdi", name:"伺服器 PCB / 高階 CCL", type:"subtech", desc:"AI 伺服器板與 HVLP 銅箔、M9 玻纖布等高階材料。"},
+  {id:"net_switch", name:"交換器 ODM", type:"subtech", desc:"白牌交換器,1.6T 升級。"},
+  {id:"net_cpo", name:"光通訊 / CPO", type:"subtech", desc:"共封裝光學:CPO 2026 進入商轉放量元年,輝達與博通兩大陣營同步導入,高度依賴台積電 COUPE 技術。台灣從矽光子代工、光引擎、光纖耦合到雷射光源一條龍。"},
+
+  // CPO 第三層(target)
+  {id:"cpo_coupe", name:"矽光子代工 COUPE", type:"target", desc:"台積電 COUPE 矽光子平台,CPO 落地的關鍵製程;國外有 Tower、GlobalFoundries。"},
+  {id:"cpo_engine", name:"光引擎 / 收發模組", type:"target", desc:"外接光源模組(ELSFP)、800G/1.6T 光收發模組的精密封裝。"},
+  {id:"cpo_fau", name:"光纖耦合 FAU / 連接", type:"target", desc:"高密度光纖陣列(FA/FAU),把光纖精準對接矽光子晶片(偏一微米訊號就斷崖衰減),CPO 連接端核心。"},
+  {id:"cpo_laser", name:"雷射光源 / InP 磊晶", type:"target", desc:"磷化銦 InP 雷射二極體磊晶,CPO 光源缺口的關鍵供應。"},
+  {id:"grid_trans", name:"變壓器 / 開關 / 配電", type:"subtech", desc:"重電四雄:變壓器、GIS 高壓開關、配電盤。"},
+
+  // ----- 公司(龍頭) -----
+  // ASIC 設計
+  {id:"alchip", name:"世芯-KY", stock:"3661", type:"co", tw:true, desc:"【本業】ASIC 設計服務(Turn-key);【轉型】AWS Trainium 主力設計合作;【題材】法說級 AWS 訂單,客戶集中度極端為主要風險。", timing:"2026Q1+", warn:"ASIC 設計競爭激烈,聯發科切入 Google TPU 推論版報價較低(便宜 20-30%),正搶 Meta 訂單;CSP 客戶集中度高(AWS 占大宗),客戶分散度與毛利率長期是觀察點。"},
+  {id:"gusc", name:"創意", stock:"3443", type:"co", tw:true, desc:"【本業】創意 ASIC 設計服務(台積電子公司);【轉型】Microsoft Maia 切入;【題材】Microsoft 法說級訂單,但 Microsoft 自研晶片時程與報價壓力為觀察。", warn:"創意 Microsoft Maia 訂單為大機會,但 Microsoft 自研晶片時程與報價壓力為主要觀察點。", timing:"2026H2"},
+  {id:"faraday", name:"智原", stock:"3035", type:"co", tw:true, desc:"【本業】智原 ASIC+IP 設計服務;【題材】ASIC 設計競爭激烈,車用 SoC 客戶分散度為觀察點。", warn:"ASIC 設計競爭激烈;車用 SoC 客戶分散度為觀察點。", timing:"2026H2"},
+  {id:"mtk", name:"聯發科", stock:"2454", type:"co", tw:true, desc:"【本業】手機 SoC+消費電子 IC;【轉型】跨入 ASIC 設計(切入 Google TPU 推論版);【題材】法說 AI 加速器訂單放量。", timing:"2026Q1+", warn:"切入 Google TPU v8 與 Meta MTIA 雖屬大機會,但需與博通、Marvell、世芯競爭;手機 SoC 主業 ASP 與滲透壓力長期未解。"},
+  {id:"nvidia", name:"Nvidia", type:"co", foreign:true, desc:"GPU 絕對龍頭,加速器出貨量八成以上。", timing:"2026Q1+"},
+  {id:"broadcom", name:"Broadcom", type:"co", foreign:true, desc:"ASIC 與交換晶片龍頭。", warn:"OpenAI 百億 ASIC 訂單雖明確,但 Meta/Apple 等客戶分散度與報價壓力長期觀察。", timing:"2026Q1+"},
+  {id:"amd", name:"AMD", type:"co", foreign:true, desc:"GPU 第二大,積極追趕。", timing:"2026Q1+"},
+  // 記憶體
+  {id:"nanya", name:"南亞科", stock:"2408", type:"co", tw:true, desc:"【本業】南亞科 DRAM 二哥;【轉型】DDR5 與 HBM 切入;【題材】DRAM 景氣循環高度連動,HBM 切入時程仍待觀察。", warn:"DRAM 景氣循環高度連動,DDR5/HBM 切入時程仍待觀察。"},
+  {id:"winbond", name:"華邦電", stock:"2344", type:"co", tw:true, desc:"【本業】華邦電利基型 DRAM/NOR Flash;【題材】DDR4 缺口受益,但 NAND/NOR 景氣循環大。"},
+  {id:"adata", name:"威剛", stock:"3260", type:"co", tw:true, desc:"【本業】威剛記憶體模組大廠(DRAM/SSD);【題材】AI 記憶體熱潮+DDR5 升級雙重受惠,月賺一個股本創高。", timing:"2026Q1+"},
+  {id:"skhynix", name:"SK 海力士", type:"co", foreign:true, desc:"HBM 全球龍頭。", timing:"2026Q1+"},
+  {id:"micron", name:"Micron 美光", type:"co", foreign:true, desc:"HBM 三雄之一。", timing:"2026Q1+"},
+  // 伺服器 ODM
+  {id:"foxconn", name:"鴻海", stock:"2317", type:"co", tw:true, desc:"【本業】電子代工龍頭(iPhone 主組裝);【轉型】AI 伺服器整機與機櫃集成主力,跨入 GB200/GB300 規模生產;【題材】Nvidia 法說明確主力供應 + Apple 法說。", timing:"2026Q1+", warn:"GB200/300 機櫃市佔最大但毛利率偏低(EMS 本質);GB300 良率與供應鏈傳出延後雜音時,股價最先反應。"},
+  {id:"quanta", name:"廣達", stock:"2382", type:"co", tw:true, desc:"【本業】NB ODM 龍頭;【轉型】AI 伺服器 ODM 第一大,Meta/Google/AWS 多 CSP 主供;【題材】法說明確 GB300/Meta MTIA,Nvidia 法說。", timing:"2026Q1+", warn:"Meta MTIA 訂單面臨博通分散風險;CSP 集中度為主要觀察點。", timing:"2026Q1+"},
+  {id:"wistron", name:"緯創", stock:"3231", type:"co", tw:true, desc:"【本業】NB+伺服器 ODM;【轉型】AI 伺服器 ODM(以 Microsoft Azure/AMD MI 為主);【題材】Microsoft 法說級訂單,但客戶分散度為觀察點。", timing:"2026Q1+", warn:"ODM 廠商之一,Microsoft Azure 占比高,訂單分散度為觀察點。", timing:"2026H2"},
+  {id:"wiwynn", name:"緯穎", stock:"6669", type:"co", tw:true, desc:"【本業】伺服器白牌雲端整機(緯創子公司);【轉型】AWS 主供;【題材】AWS 訂單佔比過高為客戶集中度風險。", timing:"2026Q1+", warn:"AWS 訂單占比過高,客戶集中度風險;台廠新進競爭者增加。", timing:"2026Q1+"},
+  {id:"inventec", name:"英業達", stock:"2356", type:"co", tw:true, desc:"【本業】NB+伺服器 ODM;【轉型】AI 伺服器 ODM 中段,Meta/Microsoft 客戶;【題材】法說明確 AI 訂單放量,但客戶分散度與毛利率為觀察。", timing:"2026H2", warn:"AI 伺服器 ODM 中段位,Meta/Microsoft 訂單較廣達分散;毛利率較低。", timing:"2026Q1+"},
+  {id:"gigabyte", name:"技嘉", stock:"2376", type:"co", tw:true, desc:"【本業】主機板+顯卡+伺服器(品牌);【轉型】AI 伺服器 ODM 切入;【題材】AMD AI 法說明確切入,毛利率持續受壓。", timing:"2026Q1+", warn:"AI 伺服器 ODM 競爭激烈,毛利率持續受壓;客戶分散度為長期觀察點。", timing:"2026Q1+"},
+  // 散熱
+  {id:"auras", name:"奇鋐", stock:"3017", type:"co", tw:true, desc:"【本業】電腦散熱模組(鰭片/熱導管/水冷板/3DVC);【轉型】Vera Rubin/GB300 水冷板主供,雙向水冷 6kW 解熱新規格;【題材】Microsoft 直供 Cold Plate + CDM,法說明確美系 CSP 訂單。", timing:"2026Q1+", warn:"客戶集中度高(Nvidia 佔比大),GB300 認證若延後或液冷規格變更(例如比例調整),受衝擊明顯;競爭者雙鴻、邁科切入後 ASP 壓力。"},
+  {id:"shuanghong", name:"雙鴻", stock:"3324", type:"co", tw:true, desc:"【本業】電腦散熱模組大廠(風冷+液冷雙軌);【轉型】GB300/Vera Rubin 水冷板認證通過,液冷板量產供應;【題材】Meta + AWS + Microsoft 三大 CSP 法說級訂單。", timing:"2026Q1+", warn:"GB300 認證取得後客戶要求降價是常態;新進者(邁科、廣運)瓜分水冷板訂單。"},
+  {id:"jentech", name:"健策", stock:"3653", type:"co", tw:true, desc:"【本業】均熱片/散熱供應鏈中游;【題材】Nvidia Vera Rubin 均熱片 IHS/Lid 主力,規格升級單位產值倍增,法說明確訂單。", timing:"2026Q1+"},
+  {id:"fositek", name:"富世達", stock:"6805", type:"co", tw:true, desc:"【本業】CDU/水冷快接頭 QD;【轉型】GB300 機櫃必備快接頭單櫃數十顆;【題材】法說明確 AI 訂單放量,但 Staubli/CPC 國際大廠虎視眈眈。", warn:"Quick Disconnect 技術門檻雖高,但 Staubli/CPC 國際大廠虎視眈眈。", timing:"2026Q1+"},
+  {id:"gaoli", name:"高力", stock:"8996", type:"co", tw:true, desc:"【本業】水冷板+熱交換器(本業氫能/燃料電池);【題材】AI 液冷供應鏈受惠,但本業氫能商用化進度慢,雙引擎變單引擎風險。", warn:"AI 散熱題材熱,但本業氫能商用化進度緩慢,雙引擎變單引擎風險。", timing:"2026Q1+"},
+  {id:"maico", name:"邁科", stock:"6831", type:"co", tw:true, desc:"【本業】散熱模組新進廠商;【題材】GB300 水冷供應鏈卡位,Nvidia 認證進度為觀察點。", warn:"新進者,客戶集中度高;若 Nvidia 規格變更或競爭者搶單(雙鴻擴產),認證進度影響大。", timing:"2026Q1+"},
+  {id:"smei", name:"晟銘電", stock:"3013", type:"co", tw:true, desc:"【本業】機殼+液冷;【題材】Meta Sidecar 水冷機櫃 4 萬櫃法說級訂單,GB300/資料中心散熱受惠,與廣達合作出貨;客戶集中度高。", warn:"Meta Sidecar 訂單雖大,但客戶集中度高;機殼本業毛利偏低。", timing:"2026Q1+"},
+  {id:"kenmec", name:"廣運", stock:"6125", type:"co", tw:true, desc:"【本業】廣運自動倉儲;【轉型】控股盛新材料切入 SiC 8 吋;【題材】SiC 化合物半導體核心持股。"},
+  {id:"taisol", name:"泰碩", stock:"3338", type:"co", tw:true, desc:"【本業】散熱模組,熱導管/均熱片;【題材】AI 伺服器散熱規格升級受惠。"},
+  // CPO / 光通訊
+  {id:"browave", name:"波若威", stock:"3163", type:"co", tw:true, desc:"【本業】波若威 FAU 光纖陣列+MPO 連接器;【轉型】矽光子 CPO 1.6T 耦合元件;【題材】持續創歷史新高,但與環宇-KY/上詮/光聖競爭加劇。", warn:"波若威 FAU 訂單雖穩定,但與環宇-KY/上詮/光聖競爭加劇。", timing:"2026Q1+"},
+  {id:"luxnet", name:"聯亞", stock:"3081", type:"co", tw:true, desc:"【本業】聯亞 InP 雷射光源(III-V 化合物);【轉型】CPO 矽光子雷射主供;【題材】法說級訂單,但 1.6T 認證進度需追蹤。", warn:"光通訊主動元件雖切入 CPO,但 1.6T 認證進度需追蹤。", timing:"2026Q1+"},
+  {id:"jpc", name:"上詮", stock:"3363", type:"co", tw:true, desc:"【本業】上詮 FAU 光纖耦合(矽光子 CPO 1.6T 關鍵元件);【轉型】Nvidia FAU 主供;【題材】法說級訂單,但波若威+環宇-KY 切入競爭。", warn:"FAU 競爭加劇,波若威+環宇-KY 切入;1.6T 量產時程影響業績。", timing:"2026Q1+"},
+  {id:"browell", name:"眾達-KY", stock:"4977", type:"co", tw:true, desc:"【本業】眾達-KY 光通訊主動元件;【題材】矽光子 CPO 1.6T 升級受惠。"},
+  {id:"sdo", name:"華星光", stock:"4979", type:"co", tw:true, desc:"【本業】華星光光通訊模組;【題材】AI 資料中心 800G/1.6T 升級受惠。", timing:"2026Q1+"},
+  // 電源
+  {id:"delta", name:"台達電", stock:"2308", type:"co", tw:true, desc:"【本業】台達電全球電源管理龍頭(伺服器 PSU + 工業電源 + 散熱 + 馬達);【轉型】800V HVDC 機櫃配電 + AI 伺服器電源核心,跨入機器人致動器;【題材】Nvidia 法說級訂單,但機器人放量時程仍不明確。", timing:"2026Q1+", warn:"電源 800V HVDC 雖大機會,但 Vicor、台達電、光寶科多家競爭;液冷代工毛利率偏低。"},
+  {id:"liteon", name:"光寶科", stock:"2301", type:"co", tw:true, desc:"【本業】光寶科電源供應器 + LED + 雲端電源;【轉型】AI 伺服器 PSU 主要供應商;【題材】法說明確 AI 訂單,但與台達/全漢競爭壓力大。", timing:"2026Q1+"},
+  {id:"acbel", name:"康舒", stock:"6282", type:"co", tw:true, desc:"【本業】康舒 PSU 電源供應器;【題材】AI 伺服器電源升級規格受惠。", timing:"2026Q1+"},
+  // 連接器/機構
+  {id:"lotes", name:"嘉澤", stock:"3533", type:"co", tw:true, desc:"【本業】嘉澤 GPU/CPU socket + 連接器 + 高速線龍頭;【轉型】Nvidia GPU socket 主供;【題材】Nvidia 法說級訂單,但 Foxconn 集團自做切入內部供應為主要風險。", timing:"2026Q1+", warn:"GPU socket 競爭加劇,Foxconn 集團切入內部供應;單一客戶 Nvidia 集中度高。", timing:"2026Q1+"},
+  {id:"kingslide", name:"川湖", stock:"8059", type:"co", tw:true, desc:"【本業】伺服器機殼滑軌龍頭;【題材】GB300 認證通過後客戶要求降價是常態,新進者瓜分滑軌訂單。", warn:"GB300 認證通過後客戶要求降價是常態;新進者瓜分機殼滑軌訂單。", timing:"2026Q1+"},
+  {id:"chenbro", name:"勤誠", stock:"8210", type:"co", tw:true, desc:"【本業】伺服器機殼大廠;【題材】AI 機殼競爭加劇,客戶分散度需追蹤。", warn:"AI 機殼競爭加劇;客戶分散度需追蹤。", timing:"2026Q1+"},
+  {id:"bizlink", name:"貿聯-KY", stock:"3665", type:"co", tw:true, desc:"【本業】貿聯-KY 高速線+特殊纜線;【轉型】GB300 機櫃高速線束;【題材】法說級訂單,但佳必琪/嘉澤搶單。", warn:"高速線競爭激烈,佳必琪/嘉澤搶單;CSP ASIC 訂單能見度與報價壓力。", timing:"2026Q1+"},
+  // PCB/CCL
+  {id:"gce", name:"金像電", stock:"2368", type:"co", tw:true, desc:"【本業】金像電伺服器 PCB 大廠;【轉型】AI 伺服器主板/背板主供;【題材】法說級訂單,但中國市場成本壓力大。", warn:"金像電 AI 伺服器 PCB 雖暢旺,但中國市場成本壓力大。", timing:"2026Q1+"},
+  {id:"trtech", name:"健鼎", stock:"3044", type:"co", tw:true, desc:"【本業】健鼎 PCB 大廠;【轉型】AI 伺服器 PCB 主供;【題材】法說級訂單,但與台光電/聯茂高度競爭,HVLP 銅箔成本壓力。", warn:"AI 伺服器 PCB 訂單雖暢旺,但與台光電/聯茂高度競爭;HVLP 銅箔成本壓力。", timing:"2026Q1+"},
+  {id:"emc", name:"台光電", stock:"2383", type:"co", tw:true, desc:"【本業】台光電 CCL 全球市佔 18.9%;【轉型】AI 伺服器 M8/M9 高速 CCL 主供;【題材】法說級訂單,但 M9 認證進度+原料銅箔成本為觀察。", warn:"台光電 CCL 全球市佔雖達 18.9%,但 M9 認證進度+原料銅箔成本為主要觀察。"},
+  {id:"iteq", name:"聯茂", stock:"6213", type:"co", tw:true, desc:"【本業】聯茂 CCL 大廠;【轉型】AI 伺服器 M8/M9 高速 CCL;【題材】法說級訂單,但與台光電競爭加劇,HVLP 銅箔毛利受擠壓。", warn:"聯茂 CCL 與台光電競爭加劇;HVLP 銅箔毛利率受擠壓。", timing:"2026Q1+"},
+  {id:"tuc", name:"台燿", stock:"6274", type:"co", tw:true, desc:"【本業】台燿 CCL 高速網通板;【轉型】AI 伺服器 M8/M9 高階 CCL;【題材】法說級訂單,但客戶集中度高。", warn:"台燿 CCL 高速網通板雖卡位,但客戶集中度高。", timing:"2026Q1+"},
+  {id:"jentec", name:"金居", stock:"8358", type:"co", tw:true, desc:"【本業】金居高階 HVLP 銅箔(PCB 上游材料);【題材】AI 伺服器 PCB 升級規格直接受惠。"},
+  // 網路/CPO
+  {id:"accton", name:"智邦", stock:"2345", type:"co", tw:true, desc:"【本業】智邦交換器 ODM 全球前三大;【題材】AI 資料中心 800G/1.6T 交換器規格升級受惠。"},
+  {id:"arcadyan", name:"智易", stock:"3596", type:"co", tw:true, desc:"【本業】智易網通設備(寬頻/家用閘道);【題材】電信運營商 + 衛星終端外溢受益。"},
+  {id:"luxshare_op", name:"光聖", stock:"6442", type:"co", tw:true, desc:"【本業】光聖光通訊主動元件大廠;【轉型】CPO 矽光子 + 1.6T 升級;【題材】法說級訂單,連續創高。"},
+  // 重電
+  {id:"fortune", name:"華城", stock:"1519", type:"co", tw:true, desc:"【本業】華城變壓器龍頭;【轉型】800V HVDC + 超高壓變壓器+海外擴產;【題材】法說級訂單,訂單能見度至 2027,但 2028 後產能擴充後價量壓力。", warn:"變壓器訂單能見度長但建廠時程慢;競爭者擴產後 2028 後價量壓力。", timing:"2026Q1+"},
+  {id:"shihlin", name:"士電", stock:"1503", type:"co", tw:true, desc:"【本業】士電(士林電機)重電+馬達+電梯;【轉型】800V HVDC + GIS 高壓開關切入;【題材】法說級訂單,但景氣受台電投資週期主導。", warn:"重電景氣循環受台電投資週期主導;產能擴張壓力。", timing:"2026Q1+"},
+  {id:"chong", name:"中興電", stock:"1513", type:"co", tw:true, desc:"【本業】中興電 GIS 高壓開關 + 電力工程;【轉型】超高壓 GIS;【題材】法說級訂單,強韌電網受惠。", timing:"2026Q1+"},
+  {id:"ally", name:"亞力", stock:"1514", type:"co", tw:true, desc:"【本業】亞力小型重電+配電盤;【題材】規模受限,訂單分散度高。", warn:"亞力小型重電,規模受限;訂單分散度高。", timing:"2026Q1+"},
+
+  // ===== 第三層 targets:先進封裝 =====
+  {id:"pkg_cowos_l", name:"CoWoS-S / CoWoS-L 製程", type:"target", desc:"CoWoS-L(局部矽互連)2026 成主流,面積更大、成本較低;CoWoS-S 仍用於最高階晶片。"},
+  {id:"pkg_soic", name:"SoIC 3D 堆疊", type:"target", desc:"晶片直接堆疊(face-to-face bonding),台積電獨有技術,Apple M 系列首發。"},
+  {id:"pkg_foplp", name:"FOPLP 面板級封裝", type:"target", desc:"用方形面板取代圓形晶圓做封裝,面積利用率高;2026~2028 量產,群創/力成/日月光各自投入。"},
+  {id:"pkg_wet", name:"濕製程 / 清洗設備", type:"target", desc:"CoWoS 每站都需清洗,弘塑酸槽+單晶圓清洗機市佔約 60~80%,辛耘切暫時貼合/剝離。"},
+  {id:"pkg_cmp", name:"CMP 研磨 / 材料", type:"target", desc:"中介層拋光與研磨耗材;中砂(CMP 鑽石碟)卡位關鍵。"},
+  {id:"pkg_uf", name:"Underfill / 封裝膠材", type:"target", desc:"底部填充膠,防止微凸塊失效;台灣本土材料廠切入中。"},
+  {id:"pkg_mask", name:"光罩盒 / 載具", type:"target", desc:"EUV 光罩傳載盒,家登全球要角。"},
+
+  // 先進封裝新台廠
+  {id:"fanxuan", name:"帆宣", stock:"6196", type:"co", tw:true, desc:"【本業】帆宣半導體廠務設備系統;【題材】台積電擴產直接受惠。", timing:"2026Q1+"},
+  {id:"kinik", name:"中砂", stock:"1560", type:"co", tw:true, desc:"【本業】中砂(中國砂輪)CMP 鑽石碟;【轉型】先進製程 CMP;【題材】法說級台積電訂單,獨家供應商。", timing:"2026Q1+"},
+  {id:"chihsheng", name:"志聖", stock:"2467", type:"co", tw:true, desc:"【本業】志聖光熱/貼膜/固化設備;【轉型】CoWoS 與 FOPLP 製程設備在地化;【題材】先進封裝擴產直接受惠。"},
+  {id:"junhwa", name:"均華", stock:"6640", type:"co", tw:true, desc:"【本業】均華先進封裝設備;【題材】先進封裝設備在地化受惠。", timing:"2026H2"},
+  {id:"innolux", name:"群創", stock:"3481", type:"co", tw:true, desc:"【本業】群創面板大廠;【轉型】FOPLP for Apple Baltra 試產;【題材】法說明確,但試產時程多次遞延,面板本業景氣承壓。", warn:"群創 FOPLP for Apple Baltra 雖卡位,但試產時程多次遞延;面板本業景氣承壓。", timing:"2026H2"},
+  {id:"changhsing", name:"長興", stock:"1717", type:"co", tw:true, desc:"【本業】長興材料 PCB/特化;【題材】CCL 上游材料受惠。"},
+
+  // ===== 第三層 targets:AI 晶片/ASIC =====
+  {id:"chip_turnkey", name:"ASIC turn-key / NRE", type:"target", desc:"從規格定義到量產交鑰匙,含前端設計、後端實體設計、封裝整合。"},
+  {id:"chip_ip", name:"矽智財 IP / EDA", type:"target", desc:"晶片設計的積木與工具;Arm CPU IP、記憶體 IP、RISC-V 等。"},
+  // ASIC 新台廠
+  {id:"eno", name:"力旺", stock:"3529", type:"co", tw:true, desc:"【本業】力旺 OTP NVM/Anti-Fuse 矽智財 IP 龍頭;【題材】AI ASIC + NPU 設計 IP 授權暢旺。", timing:"2026H2"},
+  {id:"andes", name:"晶心科", stock:"6533", type:"co", tw:true, desc:"【本業】晶心科 RISC-V IP 授權;【題材】RISC-V 雖具長線潛力,但 Arm 仍主導 NPU IP 市場,授權金成長速度待觀察。", warn:"RISC-V IP 雖具長線潛力,但 Arm 仍主導 NPU IP 市場;授權金成長速度待觀察。", timing:"2026H2"},
+
+  // ===== 第三層 targets:HBM/記憶體 =====
+  {id:"mem_stack", name:"HBM 堆疊封裝", type:"target", desc:"HBM4 堆疊到 16 層,封裝由韓美大廠主導,台系封測開始切入。"},
+  {id:"mem_module_t", name:"記憶體模組 / 工控儲存", type:"target", desc:"AI 伺服器記憶體模組與工控/邊緣嵌入式儲存。"},
+  // 記憶體新台廠
+  {id:"innodisk", name:"宜鼎", stock:"5289", type:"co", tw:true, desc:"【本業】宜鼎工控 SSD;【題材】工控 SSD 競爭加劇,群聯/威剛搶單。", warn:"工控 SSD 競爭加劇,群聯/威剛搶單;企業級 SSD 利潤遞減。", timing:"2026Q1+"},
+
+  // ===== 第三層 targets:伺服器 =====
+  {id:"srv_rack", name:"整機 / 機櫃組裝", type:"target", desc:"GB200/GB300 整櫃(rack-scale)輸出,單櫃售價 200~300 萬美元。"},
+  {id:"srv_csp", name:"CSP 客製化白牌", type:"target", desc:"AWS/Google/Meta 等 CSP 客製規格,緯穎等深度綁定。"},
+
+  // ===== 第三層 targets:電源 =====
+  {id:"pw_psu", name:"PSU 電源供應器", type:"target", desc:"伺服器電源模組,功率密度持續攀升。"},
+  {id:"pw_hvdc", name:"800V HVDC 架構", type:"target", desc:"輝達主導的 800V 高壓直流供電,2027 下半年 Kyber 架構導入,重塑資料中心電力鏈。"},
+  {id:"pw_passive", name:"被動元件 / 導線架", type:"target", desc:"高壓大電流推升鉭電容、電感、MOSFET、導線架規格。"},
+
+  // ===== 高階被動元件第三層(掛在 pw_module 下,跟 pw_passive 並列) =====
+  {id:"pw_mlcc_hv", name:"高壓 MLCC", type:"target", desc:"耐壓規格延伸至千伏等級,單價遠高於消費性 MLCC,打入 Vera Rubin 供應鏈的關鍵;禾伸堂/信昌電台廠龍頭。"},
+  {id:"pw_mlcc_hc", name:"高容值 MLCC", type:"target", desc:"AI 晶片旁穩壓用,功耗每升一級用量翻數倍;國巨、華新科、三星電機主供。"},
+  {id:"pw_mlcc_npo", name:"NPO MLCC(利基)", type:"target", desc:"原本偏利基型,AI 高效能運算需求帶動下市場快速翻揚。"},
+  {id:"pw_spcap", name:"貼片型固態電容 SP CAP", type:"target", desc:"日本松下漲價 5~65%,轉單台廠;鈺邦受惠最直接。"},
+  {id:"pw_tantalum", name:"鉭質電容", type:"target", desc:"美商基美漲價,Vera Rubin 高功耗推升用量;國巨、鈺邦受惠。"},
+  {id:"pw_alum", name:"鋁電容 / 固液混合", type:"target", desc:"長條型電解電容、固液混合鋁電容,AI 伺服器電源用量爆增;立隆電打入輝達 Vera Rubin。"},
+  {id:"pw_chipres", name:"晶片電阻 / 厚膜電阻", type:"target", desc:"國巨、華新科、大毅、凱美 2026 全面漲價 10~20%。"},
+  {id:"pw_indmag", name:"電感 / 磁珠", type:"target", desc:"AI 伺服器電源升級拉動電感與磁珠用量。"},
+
+  // ===== 功率元件 / 保護元件 / 超級電容(新增,掛在 pw_module 下) =====
+  {id:"pw_sic_gan", name:"SiC / GaN 功率元件", type:"target", desc:"AI 伺服器 800V HVDC 與 EV 800V 雙主軸推動;SiC 耐壓高(中高壓主路徑),GaN 高頻低損耗(中壓 PFC/DC-DC);積亞 650/1200/1700V SBD+MOSFET 完成量產認證,冠亞 GaN E-mode 卡位。"},
+  {id:"pw_mosfet", name:"高壓 MOSFET / IGBT", type:"target", desc:"AI 機櫃從 48V 升 400/800V HVDC 直接拉動高壓 MOSFET 需求;強茂、富鼎切入 NVIDIA 800VDC 與 CSP ASIC 伺服器電源鏈。"},
+  {id:"pw_diode", name:"整流 / 蕭特基二極體", type:"target", desc:"AI 電源整流核心元件;德微 IDM 垂直整合,打入 NVIDIA 800VDC 供應鏈,AI 占比 20%。"},
+  {id:"pw_protect_ovp", name:"過電壓保護(TVS/MOV/GDT)", type:"target", desc:"瞬態抑制二極體(TVS)、壓敏電阻(MOV)、氣體放電管(GDT);AI 伺服器 400/800V 高壓架構直接拉動高壓保護需求。"},
+  {id:"pw_protect_esd", name:"靜電保護(ESD/TSS)", type:"target", desc:"靜電保護器與半導體放電管,高速介面(USB/HDMI/Ethernet)必備低電容保護元件。"},
+  {id:"pw_protect_ocp", name:"過電流保護(PPTC/熱敏壓敏)", type:"target", desc:"PPTC 自恢復保險絲、NTC 熱敏電阻、壓敏電阻;興勤 NTC 全球絕對龍頭、插件式壓敏電阻全球前三。"},
+  {id:"pw_supercap", name:"超級電容 / BBU", type:"target", desc:"GB300 標配新熱點:超級電容毫秒級瞬間供電穩壓+循環充放電數十萬次,搭配 BBU 備援電池;AI 機櫃功率從 6kW 暴增至 120kW,商機全面引爆。"},
+  {id:"pw_inductor_tlvr", name:"TLVR 高階電感", type:"target", desc:"AI 加速卡專用耦合電感,低 DCR+高飽和電流,GPU/CPU 密度設計核心;台廠三集瑞、台慶科、佳邦深度布局。"},
+
+  // ===== 功率元件台廠 =====
+  {id:"chyangmao", name:"強茂", stock:"2481", type:"co", tw:true, desc:"【本業】強茂功率二極體+ MOSFET;【轉型】SiC 化合物半導體切入;【題材】法說級訂單,但功率元件景氣循環大。", timing:"2026H2"},
+  {id:"fudin", name:"富鼎", stock:"8261", type:"co", tw:true, desc:"【本業】富鼎功率 MOSFET;【轉型】800V HVDC 切入;【題材】法說級訂單,但功率元件競爭激烈。", timing:"2026H2"},
+  {id:"diodes_tw", name:"德微", stock:"3675", type:"co", tw:true, desc:"【本業】德微功率二極體;【題材】功率元件外溢受益。", timing:"2026Q1+"},
+  {id:"episil", name:"漢磊", stock:"3707", type:"co", tw:true, desc:"【本業】漢磊 8 吋 SiC 量產主力;【題材】2026 底目標商轉,若延後受惠時點會被遞延;Wolfspeed 重整轉單機會。", timing:"2026H2", warn:"Wolfspeed 重整理論利多轉單,但 8 吋 SiC 量產時點若延後(目前目標 2026 底),受惠時間會被遞延。"},
+  {id:"epistar_s", name:"嘉晶", stock:"3016", type:"co", tw:true, desc:"【本業】晶電 LED 磊晶;【轉型】GaN/SiC 化合物半導體切入;【題材】LED 主業景氣循環下行,化合物半導體放量速度低於市場預期。", timing:"2026H2", warn:"GaN/SiC 磊晶卡位早,惟 LED 主業仍處景氣循環下行;化合物半導體放量速度低於市場原預期。"},
+  {id:"vis_t", name:"世界先進", stock:"5347", type:"co", tw:true, desc:"【本業】世界先進晶圓代工(8 吋利基/PMIC);【題材】成熟製程漲價外溢受益。", timing:"2026H2"},
+  {id:"green_tw", name:"力智", stock:"6719", type:"co", tw:true, desc:"【本業】力智電源管理 IC;【題材】AI 伺服器 PMIC 規格升級受惠。"},
+  {id:"taya_chip", name:"台亞半導體", stock:"2340", type:"co", tw:true, desc:"【本業】台亞半導體(原光磊,LED);【轉型】積亞半導體(SiC SBD/MOSFET 量產) + 冠亞半導體(GaN E-mode);【題材】AI 伺服器 + EV 800V 雙主軸。"},
+  {id:"microsil", name:"微矽電子-創", stock:"8162", type:"co", tw:true, desc:"【本業】微矽電子-創國內 PMIC/MOSFET/GaN 測試與晶圓薄化重要供應商;【轉型】2026 擴充 MOSFET 測試 + FSM + 功率模組測試;【題材】功率元件+第三代半導體後段最直接受惠,興櫃創新板小型股流動性低。"},
+  {id:"changke", name:"長科*", stock:"6548", type:"co", tw:true, desc:"【本業】長科*導線架;【題材】功率元件外溢受益。"},
+
+  // ===== 保護元件台廠 =====
+  {id:"thinking", name:"興勤", stock:"2428", type:"co", tw:true, desc:"【本業】興勤 NTC 熱敏電阻;【題材】穩定但車用景氣循環影響毛利。", warn:"興勤 NTC 雖穩定,但車用景氣循環影響毛利。", timing:"2026Q1+"},
+  {id:"compex", name:"佳邦", stock:"6284", type:"co", tw:true, desc:"【本業】佳邦 ESD/EMI 保護元件;【題材】AI 晶片高速介面保護元件規格升級。", warn:"保護元件+電感雙軌切入,惟與興勤、聚鼎、Murata、Vishay 多面競爭;單一客戶大單比例需追蹤。"},
+  {id:"polytronics", name:"聚鼎", stock:"6224", type:"co", tw:true, desc:"【本業】聚鼎 PPTC 過電流保護元件;【題材】高壓大電流推升受惠。"},
+
+  // ===== 超級電容/BBU + TLVR 相關 =====
+  {id:"sanjet", name:"三集瑞-KY", stock:"6862", type:"co", tw:true, desc:"【本業】三集瑞-KY TLVR 高階電感深度布局;【題材】AI 伺服器電源用耦合電感主力。", timing:"2026H2"},
+  {id:"tcco", name:"台慶科", stock:"3357", type:"co", tw:true, desc:"【本業】台慶科 PCB 中型廠;【題材】AI 伺服器 PCB 外溢受益。", timing:"2027"},
+
+  // 被動元件台廠
+  {id:"yageo", name:"國巨", stock:"2327", type:"co", tw:true, desc:"【本業】國巨* MLCC 全球前三大;【轉型】高階高壓 MLCC + AI 伺服器 + 普思君耀整合;【題材】MLCC 漲價題材龍頭,但價格循環陡峭(2018 教訓);併購整合消化進度。", timing:"2026Q1+", warn:"被動元件全面漲價題材有利,但歷史上 MLCC 價格循環陡峭,2018 年漲跌教訓需留意;併購整合(普思、君耀、立隆等)是否消化也是關鍵。"},
+  {id:"walsin", name:"華新科", stock:"2492", type:"co", tw:true, desc:"【本業】華新科 MLCC 二哥;【題材】MLCC 漲價類股,與國巨競合,中國市場壓力大。", warn:"華新科 MLCC 與國巨競合,中國市場壓力大。", timing:"2026Q1+"},
+  {id:"hosiden", name:"禾伸堂", stock:"3026", type:"co", tw:true, desc:"【本業】禾伸堂高階 MLCC + AI 連接器;【轉型】GB300 高速連接器切入;【題材】Nvidia 法說級訂單。", timing:"2026Q1+", warn:"高壓 MLCC 切入 Vera Rubin 屬利基受惠,惟產能擴充速度與韓系/日系競爭(村田、TDK)為長期觀察點。"},
+  {id:"sinanen", name:"信昌電", stock:"6173", type:"co", tw:true, desc:"【本業】信昌電 MLCC 中型廠;【題材】MLCC 漲價類股外溢受益。", timing:"2026Q1+"},
+  {id:"holycoin", name:"華容", stock:"5328", type:"co", tw:true, desc:"【本業】華容鋁電容;【題材】被動元件漲價外溢受益。"},
+  {id:"jstar", name:"金山電", stock:"8042", type:"co", tw:true, desc:"【本業】金山電 MLCC + 被動元件次族群;【題材】被動元件漲價類股外溢受益。"},
+  {id:"sktech", name:"天二科技", stock:"6834", type:"co", tw:true, desc:"【本業】天二科技 MLCC + 被動元件;【題材】MLCC 漲價類股直接受益。"},
+  {id:"junpao", name:"鈞寶", stock:"6155", type:"co", tw:true, desc:"【本業】鈞寶 EMI 軟磁濾波元件;【題材】AI 高頻電路 EMI 規格升級。"},
+  {id:"jamicon", name:"立隆電", stock:"2472", type:"co", tw:true, desc:"【本業】立隆電鋁電容;【題材】被動元件漲價類股,AI 伺服器外溢受益。", timing:"2026Q1+"},
+  {id:"apaq", name:"鈺邦", stock:"6449", type:"co", tw:true, desc:"【本業】鈺邦鋁電容;【題材】鋁電容漲價外溢受益。"},
+  {id:"capxon", name:"凱美", stock:"2375", type:"co", tw:true, desc:"【本業】凱美電容(被動元件);【題材】被動元件漲價類股外溢受益,規模較小。", timing:"2026H2"},
+  {id:"taiwong", name:"大毅", stock:"2478", type:"co", tw:true, desc:"【本業】大毅厚膜電阻;【題材】高壓電阻 + AI 機櫃外溢受益。"},
+  {id:"liduo", name:"立敦", stock:"6175", type:"co", tw:true, desc:"【本業】立敦鋁箔(電容上游材料);【題材】被動元件漲價題材外溢受益。"},
+  {id:"nidec", name:"日電貿", stock:"3090", type:"co", tw:true, desc:"【本業】日電貿台灣最大被動元件代理商;【轉型】代理三星電機 MLCC(AI 伺服器主供來源);【題材】AI 缺貨直接受惠,2026 EPS 估 8.5 元。"},
+  {id:"poda", name:"堡達", stock:"3537", type:"co", tw:true, desc:"【本業】堡達被動元件;【題材】MLCC 漲價題材類股。"},
+  // 電源新台廠
+  {id:"fsp", name:"全漢", stock:"3015", type:"co", tw:true, desc:"【本業】全漢 PSU + UPS + 工業電源;【轉型】800V HVDC 切入;【題材】AI 伺服器電源升級規格受惠。", timing:"2026H2"},
+  {id:"hanchuan", name:"瀚荃", stock:"8103", type:"co", tw:true, desc:"【本業】瀚荃電源連接器中型廠;【轉型】AI 電源連接器占比快速提升;【題材】訂單與擴產能見度高。", timing:"2026H2"},
+  {id:"sunde", name:"順德", stock:"2351", type:"co", tw:true, desc:"【本業】順德導線架龍頭;【轉型】800V 高功率導線架切入;【題材】功率元件規格升級受惠。", timing:"2026H2"},
+
+  // ===== 第三層 targets:連接器/機構 =====
+  {id:"cn_gpu_skt", name:"GPU / CPU Socket", type:"target", desc:"嘉澤獨佔 Nvidia GPU socket,每顆 ASP 持續上升。"},
+  {id:"cn_rail", name:"滑軌 / 機殼", type:"target", desc:"伺服器機殼與滑軌,川湖/勤誠台灣龍頭。"},
+  {id:"cn_cable", name:"高速線束 / Busbar", type:"target", desc:"800V HVDC 推升 Power Whip、Busbar、高速互連線束價值。"},
+  // 連接器新台廠
+  {id:"sinbon", name:"信邦", stock:"3023", type:"co", tw:true, desc:"【本業】信邦連接器 + 線束龍頭;【題材】AI 伺服器配電外溢受益。", timing:"2026Q1+"},
+
+  // ===== 第三層 targets:PCB/CCL =====
+  {id:"pcb_svr", name:"伺服器主板 / 背板", type:"target", desc:"AI 伺服器板層數從 20 多層升至 34~50 層,面積與鑽孔難度大增。"},
+  {id:"pcb_ccl", name:"CCL 銅箔基板(M8/M9)", type:"target", desc:"M8 量產中,M9 2026 下半年放量;台光電全球市佔 18.9% 居冠。"},
+  {id:"pcb_copper", name:"HVLP 銅箔", type:"target", desc:"極低輪廓銅箔,降低傳輸損耗,AI 伺服器/高速載板不可或缺。"},
+  {id:"pcb_glass", name:"玻纖布 / 石英布(T布)", type:"target", desc:"M9 規格將採高階石英布(Q-glass)取代傳統玻纖布,材料革命。"},
+  // PCB 新台廠
+  {id:"gaotech", name:"高技", stock:"5439", type:"co", tw:true, desc:"【本業】高技 AI 伺服器主板/背板 PCB;【題材】與金像電並列伺服器 PCB 主力,AI 法說明確受惠。"},
+  {id:"zdkay", name:"臻鼎-KY", stock:"4958", type:"co", tw:true, desc:"【本業】臻鼎-KY 軟板+硬板全球龍頭(iPhone 鏈);【題材】Apple 鏈受惠,但毛利率長期承壓。", warn:"臻鼎-KY 軟板+硬板雙軌,但 iPhone 鏈毛利率長期承壓。", timing:"2026Q1+"},
+  {id:"fujio", name:"富喬", stock:"1815", type:"co", tw:true, desc:"【本業】富喬玻纖布 + 衛星 PCB 上游;【題材】PCB 上游材料外溢受益。"},
+
+  // ===== 第三層 targets:重電 =====
+  {id:"grid_xfmr", name:"變壓器", type:"target", desc:"大型變壓器交期約 2.5 年,華城/士電訂單滿到 2027~2028。"},
+  {id:"grid_gis", name:"GIS 高壓開關", type:"target", desc:"中興電龍頭,台電強韌電網最受惠。"},
+  {id:"grid_dist", name:"配電盤 / 電纜", type:"target", desc:"亞力配電盤、大亞電纜,資料中心擴建受惠。"},
+  // 重電新台廠
+  {id:"taya", name:"大亞", stock:"1609", type:"co", tw:true, desc:"【本業】大亞電線電纜+太陽能;【轉型】特高壓電纜切入;【題材】台電強韌電網訂單外溢受益。", timing:"2026Q1+"},
+  {id:"teco", name:"東元", stock:"1504", type:"co", tw:true, desc:"【本業】東元馬達+重電+伺服器電源;【轉型】機器人致動器+ AI 伺服器電源;【題材】機器人放量時程仍不明確,本業景氣循環大。", warn:"東元集團跨界機器人,實質貢獻仍小;本業景氣循環大。", timing:"2026H2"},
+
+  // ===== 重要上游材料(第 12 大分類) =====
+  // 子分類
+  {id:"mat_compound", name:"化合物半導體 SiC/GaN/InP", type:"subtech", desc:"第三類半導體材料平台。SiC 中高壓主路徑(EV 800V、AI 800V HVDC);GaN 高頻低損耗(PFC/DC-DC、5G);InP 矽光子發光元件(CPO)。Wolfspeed 重整後台廠迎轉單潮。"},
+  {id:"mat_wafer", name:"矽晶圓 / SOI", type:"subtech", desc:"所有晶片的基底。2 奈米與先進封裝擴產帶動 12 吋需求;環球晶卡位 GaN-on-Si/QST,合晶 SOI 與 SiC 雙軌。"},
+  {id:"mat_chem", name:"特用化學 / 光阻", type:"subtech", desc:"2 奈米 GAA 架構推升耗用 3 倍、純度 PPT 級;在地化是 2026 大趨勢,台積電 2030 目標 68% 在地採購。CoWoS 擴產直接拉動光阻剝離劑、TMAH、研磨液、清洗液。"},
+  {id:"mat_gas", name:"特用氣體 / 靶材 / 前驅物", type:"subtech", desc:"半導體製程超高純度氣體與 ALD 前驅物;2nm GAA 架構對矽乙烷需求強勁。"},
+
+  // 化合物半導體第三層 targets
+  {id:"mat_sic", name:"SiC 碳化矽", type:"target", desc:"耐高壓、高溫,EV 主驅+資料中心高壓母線+CoWoS 散熱中介層潛在應用;漢磊與世界先進推 8 吋 SiC 代工。"},
+  {id:"mat_gan", name:"GaN 氮化鎵", type:"target", desc:"高頻低損耗,PFC/DC-DC、5G、AI 800V HVDC;環球晶 GaN-on-Si/QST 完整方案,2025 擴產 30% 訂單預訂一空。"},
+  {id:"mat_inp", name:"InP 磷化銦", type:"target", desc:"矽光子發光元件,CPO 光源缺口關鍵供應;聯亞 InP 雷射二極體磊晶。"},
+  {id:"mat_gaas", name:"GaAs 砷化鎵", type:"target", desc:"高頻射頻元件、光通訊雷射;穩懋全球砷化鎵代工龍頭。"},
+
+  // 矽晶圓/SOI 第三層
+  {id:"mat_12in", name:"12 吋矽晶圓", type:"target", desc:"先進製程主力,2 奈米 GAA 與 CoWoS 擴產持續吃緊。"},
+  {id:"mat_soi", name:"SOI 絕緣層上覆矽", type:"target", desc:"RF/車用/感測利基,合晶持續擴展。"},
+
+  // 特化第三層
+  {id:"mat_photoresist", name:"光阻 / Rinse / 顯影", type:"target", desc:"微影核心耗材;2nm N2 Rinse 用量較 N3 提升 40~50%,新應材獨家供應商。"},
+  {id:"mat_stripper", name:"剝離液 / 蝕刻液 / 清洗液", type:"target", desc:"CoWoS 光阻剝離劑、TMAH、N2 蝕刻液;三福化、勝一、新應材直接受惠先進封裝擴產。"},
+  {id:"mat_cmp", name:"研磨液 / 蝕刻氣 / 高純硫酸", type:"target", desc:"CMP 研磨液、電子級硫酸;中華化先進製程硫酸全球唯二認證廠。"},
+
+  // 特氣第三層
+  {id:"mat_egas", name:"電子特氣 / 散裝氣", type:"target", desc:"氮氣、氧氣、氬氣、氦氣等超純氣體;Air Products/林德全球大廠,台廠以代理+在地供應切入。"},
+  {id:"mat_precursor", name:"ALD 前驅物 / 矽乙烷", type:"target", desc:"2nm GAA 架構對矽乙烷需求強勁;台特化台灣唯一具量產矽烷能力,宇川切入 ALD 高 K 前驅物。"},
+
+  // ===== 化合物半導體台廠(部分既有公司在此跨界,新增為主) =====
+  {id:"gwc", name:"環球晶", stock:"6488", type:"co", tw:true, desc:"【本業】環球晶矽晶圓全球三大(美/台/日);【轉型】GaN/SiC 化合物半導體切入;【題材】法說級 GaN 訂單預訂一空,但 2 奈米擴產折舊偏重風險。", timing:"2026Q1+", warn:"GaN/SiC 雖訂單預訂一空,惟矽晶圓本業 2 奈米擴產所需設備折舊偏重;化合物半導體放量低於預期是風險。", timing:"2026Q1+"},
+  {id:"wafer_works", name:"合晶", stock:"6182", type:"co", tw:true, desc:"【本業】合晶矽晶圓再生;【轉型】先進製程擴產;【題材】客戶集中度高。", warn:"合晶矽晶圓再生雖切入,但客戶集中度高;先進製程擴產節奏影響業績。", timing:"2026H2", timing:"2026H2"},
+  {id:"win_semi", name:"穩懋", stock:"3105", type:"co", tw:true, desc:"【本業】穩懋 GaAs 砷化鎵代工龍頭;【轉型】CPO 雷射光源切入;【題材】手機射頻 PA 庫存循環影響大,CPO 雷射放量速度低於原預期。", timing:"2026Q1+", warn:"砷化鎵代工高度仰賴手機射頻 PA 庫存週期;CPO 雷射尚未放量。", timing:"2026Q1+"},
+  {id:"visual_pp", name:"全新", stock:"2455", type:"co", tw:true, desc:"【本業】全新光電 InP/GaAs 雷射;【題材】光通訊轉型速度待觀察,客戶集中度高。", warn:"全新光電 InP/GaAs 雖卡位,但客戶集中度高;光通訊轉型速度待觀察。", timing:"2026H2", timing:"2026H2"},
+  {id:"mosel", name:"茂矽", stock:"2342", type:"co", tw:true, desc:"【本業】茂矽利基記憶體;【題材】DDR4 利基外溢間接受益。"},
+  {id:"iet", name:"IET-KY", stock:"4971", type:"co", tw:true, desc:"【本業】IET-KY 砷化鎵 IDM(磊晶+代工+元件);【題材】光通訊化合物半導體受惠。", timing:"2026H2", timing:"2026H2"},
+  {id:"sicmix", name:"訊芯-KY", stock:"6451", type:"co", tw:true, desc:"【本業】訊芯-KY 光通訊封測;【轉型】矽光子 CPO 整合封測;【題材】法說級訂單,但日月光投資布局擠壓利潤。", warn:"光通訊封測競爭加劇,日月光投資布局擠壓利潤。"},
+  {id:"foci", name:"統新", stock:"6426", type:"co", tw:true, desc:"【本業】統新 InP 雷射 + 光通訊主動元件;【轉型】CPO 矽光子雷射光源;【題材】法說級訂單,但與華為+海外大廠競爭,國際禁令影響不確定。", warn:"InP 雷射技術門檻雖高,但與華為+海外大廠競爭;國際禁令影響不確定。"},
+
+  // 矽晶圓
+  {id:"sumco_tw", name:"台勝科", stock:"3532", type:"co", tw:true, desc:"【本業】台勝科矽晶圓;【題材】矽晶圓本業景氣循環大,海內外擴產競爭加劇。", warn:"台勝科矽晶圓本業景氣循環大;海內外擴產競爭加劇。", timing:"2026H2"},
+
+  // 特化台廠
+  {id:"emat", name:"新應材", stock:"4749", type:"co", tw:true, desc:"【本業】新應材光阻+ Rinse 在地化龍頭;【轉型】台積電 N2 Rinse 獨家;【題材】法說級訂單,先進製程材料在地化。", timing:"2026H2"},
+  {id:"unison", name:"勝一", stock:"1773", type:"co", tw:true, desc:"【本業】勝一電子化學品(光阻劑);【轉型】2nm 製程光阻;【題材】先進製程在地化受惠。", timing:"2026H2"},
+  {id:"chinghua", name:"中華化", stock:"1727", type:"co", tw:true, desc:"【本業】中華化先進製程硫酸(全球唯二);【轉型】台積電獨家;【題材】法說級訂單,半導體擴產剛需。", timing:"2026H2"},
+  {id:"taisol_chem", name:"三福化", stock:"4755", type:"co", tw:true, desc:"【本業】三福化光阻剝離劑+蝕刻液;【轉型】台積電 AP7/8 CoWoS 剝離劑;【題材】法說級訂單,先進封裝材料在地化。", timing:"2026Q1+"},
+  {id:"yougo", name:"永光", stock:"1711", type:"co", tw:true, desc:"【本業】永光化學(特化族群);【題材】投信積極加碼,半導體擴產周邊受惠。", timing:"2026H2"},
+  {id:"dragonjet", name:"日勝化", stock:"1735", type:"co", tw:true, desc:"【本業】日勝化特化代理;【題材】半導體擴產周邊受惠。", timing:"2026H2"},
+  {id:"taichem", name:"台特化", stock:"4772", type:"co", tw:true, desc:"【本業】台特化矽乙烷 + 特氣;【轉型】台積電矽乙烷台灣唯一;【題材】法說級訂單,2nm 製程關鍵特氣。", timing:"2026Q1+"},
+  {id:"daxin", name:"達興材料", stock:"5234", type:"co", tw:true, desc:"【本業】達興材料 CMP 研磨液 + 光阻;【題材】先進製程材料在地化受惠。", timing:"2026H2"},
+  {id:"kuokuang", name:"國精化", stock:"4722", type:"co", tw:true, desc:"【本業】國精化化學品 + 特化;【題材】半導體擴產周邊受惠。", timing:"2026H2"},
+
+  // 特氣台廠
+  {id:"topco", name:"崇越", stock:"5434", type:"co", tw:true, desc:"【本業】崇越科技半導體特化通路 + 矽晶圓代理;【題材】半導體擴產周邊受惠,毛利率承壓。", warn:"崇越特化通路毛利率長期承壓;美商代理權變動風險。", timing:"2026Q1+"},
+  {id:"holiday", name:"華立", stock:"3010", type:"co", tw:true, desc:"【本業】華立特化代理 + 工業氣體;【題材】半導體擴產周邊受惠,毛利率穩定但成長受限。", warn:"華立化學品+特氣代理毛利率穩定但成長受限。", timing:"2026H2"},
+  // ===== AI 晶片補完 =====
+  {id:"chip_gpu_main", name:"GPU 通用加速器", type:"target", desc:"通用 AI 加速器,Nvidia 市佔逾八成。2026 預估 GPU+ASIC 出貨 1136 萬顆(YoY+24%)。"},
+  {id:"chip_npu", name:"NPU / 邊緣 SoC", type:"target", desc:"神經網絡處理器微縮化,百億參數模型壓縮塞進筆電/手機;聯發科天璣系列強攻 AI 手機,M31/瑞昱布局邊緣 AI。"},
+  {id:"chip_auto", name:"車用 / 自駕 SoC", type:"target", desc:"自駕運算+ADAS,聯發科+創意+智原跨入車用 ASIC。"},
+  // 新台廠
+  {id:"realtek", name:"瑞昱", stock:"2379", type:"co", tw:true, desc:"【本業】瑞昱乙太網/WiFi/音效 IC 龍頭;【題材】AI 邊緣裝置+伺服器網路 IC 受惠。", timing:"2026Q1+"},
+  {id:"m31", name:"M31", stock:"6643", type:"co", tw:true, desc:"【本業】M31 矽智財 IP;【題材】先進製程 IP 與台積電合作緊密。", timing:"2026H2"},
+  {id:"vatic", name:"創鑫智慧", stock:"7755", type:"co", tw:true, desc:"【本業】創鑫 AI 推論加速器設計;【題材】AI 推論加速器仍處早期市場,客戶導入速度緩慢。", warn:"AI 推論加速器仍處早期市場,客戶導入速度緩慢。", timing:"2026H2"},
+
+  // ===== HBM 補完 =====
+  {id:"mem_hbm_test", name:"HBM 測試 / 探針卡", type:"target", desc:"HBM 後段封測+測試需求暴增;力成 3D 堆疊技術領先,京元電 AI 測試訂單能見度看至 2026 中。"},
+  {id:"mem_dram_t", name:"DDR5 / 客製化 DRAM", type:"target", desc:"南亞科切入 DDR5 + 客製化 AI UWIO 寬頻記憶體,2026 Q1 營收年增 583%。"},
+  {id:"mem_ssd", name:"AI SSD / 控制 IC", type:"target", desc:"AI 伺服器企業級 SSD 與 NAND 控制 IC;群聯 aiDAPTIV+ 企業級方案。"},
+  // 新台廠
+  {id:"phison", name:"群聯", stock:"8299", type:"co", tw:true, desc:"【本業】群聯 NAND 控制 IC;【題材】NAND 廠庫存與報價影響大,消費電子市況連動。", warn:"NAND 控制 IC 高度仰賴 NAND 廠庫存與報價;消費電子市況連動。", timing:"2026Q1+"},
+  {id:"teamgroup", name:"十銓", stock:"4967", type:"co", tw:true, desc:"【本業】十銓記憶體模組+SSD;【題材】AI 記憶體熱潮受惠。", timing:"2026Q1+"},
+
+  // ===== 機器人補完 =====
+  {id:"rb_harmonic", name:"諧波減速機", type:"target", desc:"人形機器人關節核心,單機需求 30-40 顆,日廠 Harmonic Drive 主導,台廠盤鈺、和大、上銀切入。"},
+  {id:"rb_planet", name:"行星減速機", type:"target", desc:"台灣精銳全球前段班(4Q24 占比 73%),13mm 微型用在人形機器人腰肩靈巧手,Amazon 認證。"},
+  {id:"rb_screw", name:"滾珠螺桿 / 線性滑軌", type:"target", desc:"線性傳動核心,上銀全球前三,直得切入 Dexterity/波士頓動力。"},
+  {id:"rb_servo", name:"伺服馬達 / 無框馬達", type:"target", desc:"高功率密度 BLDC 無框馬達,人形機器人致動器核心;台達電、東元、大銀微系統卡位。"},
+  {id:"rb_sensor", name:"3D 視覺 / 力矩感測器", type:"target", desc:"機器人手眼協調核心:3D 深度感測、6 軸力矩感測;所羅門 AI 視覺領先。"},
+  {id:"rb_tact", name:"觸覺 / 皮膚感測", type:"target", desc:"靈巧手末端皮膚感測,接觸力回饋,屬人形機器人最後一哩。"},
+
+  // ===== 衛星補完 =====
+  {id:"sat_pcb_hi", name:"太空級高頻 PCB", type:"target", desc:"華通 Starlink 太空板市佔約 9 成;高頻特殊基材+太空認證,毛利率遠高於消費級 PCB。"},
+  {id:"sat_array", name:"相位陣列天線", type:"target", desc:"低軌衛星與用戶終端核心元件,毫米波技術門檻高;耀登、譁裕、台揚卡位。"},
+  {id:"sat_mmw_ic", name:"毫米波 IC / 砷化鎵", type:"target", desc:"衛星射頻前端 IC,GaAs/GaN 製程;穩懋全球砷化鎵代工龍頭,昇達科衛星營收占比 8 成。"},
+  {id:"sat_terminal", name:"地面終端 / 用戶接收", type:"target", desc:"Starlink 用戶終端、地面站、車載/船用衛星天線整合。"},
+  {id:"sat_struct", name:"衛星本體結構 / 太陽能", type:"target", desc:"衛星本體機構件+太陽能板,SpaceX Starshield 供應鏈。"},
+  // 新台廠
+  {id:"hua_yu", name:"譁裕", stock:"3419", type:"co", tw:true, desc:"【本業】譁裕網通設備;【題材】衛星/5G 外溢受益。", timing:"2027"},
+  {id:"kingone", name:"公準", stock:"3178", type:"co", tw:true, desc:"【本業】公準精密機械;【題材】機器人/精密加工受惠。", timing:"2027"},
+
+  // ========== A: 半導體設備在地化(2026 大主軸) ==========
+  {id:"se_litho", name:"微影周邊 / 光罩", type:"target", desc:"EUV 光罩盒/承載/Pellicle,2026 在地化重點;家登 EUV Pod 全球壟斷。"},
+  {id:"se_etch", name:"蝕刻 / 沉積設備", type:"target", desc:"乾濕蝕刻、ALD 薄膜沉積,2nm/CoWoS 大量採用;辛耘、廷鑫興、漢辰科技切入。"},
+  {id:"se_furn", name:"爐管 / 擴散 / 退火", type:"target", desc:"前段製程熱處理設備,京鼎是 AMAT 主要 OEM。"},
+  {id:"se_wafer_h", name:"晶圓搬運 / 廠務工程", type:"target", desc:"FOUP 載具、Wafer Handler、廠務系統整合;漢唐廠務工程龍頭,帆宣轉投資勵威 MEMS 探針卡。"},
+  {id:"se_inspect_local", name:"在地化檢測 / 量測", type:"target", desc:"萬潤(AOI 跨界),興櫃倍利科/漢測/碩正切入晶圓量測。"},
+  {id:"chinkin", name:"京鼎", stock:"3413", type:"co", tw:true, desc:"【本業】京鼎 AMAT 主要 OEM 夥伴 (爐管+沉積設備代工);【題材】法說級訂單,但 AMAT 客戶集中度高。", warn:"AMAT OEM 雖穩定,但客戶集中度高;單一品牌訂單能見度為觀察點。", timing:"2026H2"},
+  {id:"hantang", name:"漢唐", stock:"2404", type:"co", tw:true, desc:"【本業】漢唐廠務工程龍頭;【轉型】2nm/CoWoS 廠務工程主力;【題材】法說級訂單,先進製程廠務直接受惠。", timing:"2026Q1+"},
+// ========== E: 矽光子周邊更細 ==========
+  {id:"cpo_microlens", name:"微透鏡陣列 / 光學耦合", type:"target", desc:"CPO 光纖耦合的精密光學元件,VCSEL 陣列搭配。"},
+  {id:"cpo_silicon", name:"矽光子晶片 IC", type:"target", desc:"光收發 IC、調變器、光偵測器;Intel/Broadcom 主導,台廠在背後封裝/測試。"},
+  {id:"luxnet_e", name:"光環", stock:"3234", type:"co", tw:true, desc:"【本業】光環 CWDM/CPO 光收發模組;【題材】矽光子 CPO 鏈受惠。"},
+
+  // ========== F: 邊緣 AI / 智慧工廠 ==========
+  {id:"sintech", name:"新代", stock:"7750", type:"co", tw:true, desc:"【本業】新代工具機控制器(數值控制龍頭);【題材】智慧工具機+機器人控制受惠。"},
+  {id:"apacer", name:"宇瞻", stock:"8271", type:"co", tw:true, desc:"【本業】宇瞻記憶體模組+工控 SSD;【題材】工控應用受惠。"},
+
+  // ========== D: AI PC / AI 手機 ==========
+  {id:"d_aipc", name:"AI PC", type:"target", desc:"2025-2026 量產年,NPU 內建筆電新規格;聯發科 Kompanio AI 平台、Intel/AMD 競合;台廠 ODM 全球出貨 9 成。"},
+  {id:"d_aiphone", name:"AI 手機", type:"target", desc:"聯發科天璣 9400/9500、高通 SD8 Gen4 進入大規模 AI 推論。"},
+  {id:"d_periph", name:"AI PC/手機 周邊配件", type:"target", desc:"AI 鍵盤/滑鼠/喇叭/視訊鏡頭升級;群光、致伸高度受惠。"},
+  {id:"chicony", name:"群光", stock:"2385", type:"co", tw:true, desc:"【本業】群光鍵盤+鏡頭+電源大廠;【題材】Microsoft Copilot+ PC 規格升級受惠,但毛利率長期承壓。", warn:"群光鍵盤+鏡頭+電源規模大,但毛利率長期承壓。", timing:"2026H2"},
+  {id:"primax", name:"致伸", stock:"4915", type:"co", tw:true, desc:"【本業】致伸 PC 周邊(鍵盤/喇叭/影像模組);【題材】跟著 NB ODM 出貨,AI PC 換機潮力道為主要觀察。", warn:"致伸 PC 周邊毛利偏低;AI PC 換機潮力道為主要觀察。", timing:"2026H2"},
+  {id:"pegatron", name:"和碩", stock:"4938", type:"co", tw:true, desc:"【本業】iPhone 組裝 ODM 二哥;【題材】Apple AI 鏈受惠,組裝毛利率長期被擠壓,與立訊競爭組裝份額。", warn:"iPhone 組裝毛利率長期被擠壓;與立訊競爭組裝份額。", timing:"2026H2"},
+  {id:"compal", name:"仁寶", stock:"2324", type:"co", tw:true, desc:"【本業】NB ODM 二哥;【轉型】AI 伺服器中段 ODM+車用業務多年布局;【題材】AMD AI 法說明確切入。", warn:"NB ODM 毛利率長期偏低;車用業務多年布局實質貢獻有限。", timing:"2026H2"},
+  {id:"acer", name:"宏碁", stock:"2353", type:"co", tw:true, desc:"【本業】PC+NB 品牌;【題材】AI PC 換機潮力道待驗證,品牌議價力較弱。", timing:"2026H2", warn:"AI PC 規格升級雖然利多,但 PC 大環境換機潮力道仍需驗證;品牌議價力較弱。", timing:"2026H2"},
+  {id:"asus", name:"華碩", stock:"2357", type:"co", tw:true, desc:"【本業】PC+NB+主機板品牌;【轉型】AI 伺服器+AI PC 雙軌;【題材】法說明確 AI 伺服器訂單,但 AI PC 換機潮力道待驗證。", timing:"2026Q1+", warn:"AI PC 規格升級雖然利多,但 PC 大環境換機潮力道仍需驗證;伺服器毛利偏低。", timing:"2026H2"},
+  {id:"aten", name:"宏正", stock:"6277", type:"co", tw:true, desc:"【本業】宏正 KVM 切換器龍頭;【題材】AI 資料中心管理 + AI PC 周邊雙重受惠,成長動能受限。", warn:"宏正 KVM 切換器市場成熟;成長動能受限。", timing:"2026H2"},
+  {id:"micro_star_b", name:"微星", stock:"2377", type:"co", tw:true, desc:"【本業】主機板+顯卡+電競 NB 品牌;【轉型】AI 伺服器切入;【題材】電競 NB 庫存週期大,AI PC 規格升級力道待驗證。", warn:"微星電競 NB 庫存週期大;AI PC 規格升級力道待驗證。", timing:"2026H2"},
+
+  // ========== 三大新題材:Apple AI / 量子運算 / Stargate ==========
+
+  // === Apple AI 鏈 ===
+  {id:"apple_d", name:"Apple", type:"co", foreign:true, demand:true, desc:"自研 M 系列 + Apple Intelligence + 自研伺服器晶片 Baltra(預估 FOPLP 試產)。台積電 N3P 獨家代工,鴻海/和碩組裝主力。"},
+  {id:"apple_chain", name:"Apple AI 鏈", type:"target", desc:"Apple 自研 AI 伺服器晶片 Baltra(可能採 FOPLP 試產)+ M5/M6 + iPhone Apple Intelligence;群創 FOPLP 卡位 Baltra 試產。", timing:"2027"},
+  {id:"largan", name:"大立光", stock:"3008", type:"co", tw:true, desc:"【本業】大立光光學鏡頭龍頭(iPhone 鏡頭主供);【轉型】跨太空衛星鏡頭;【題材】法說級 Apple 訂單,AI 影像辨識拉動高階鏡頭升級。", timing:"2026Q1+", warn:"iPhone 鏡頭規格逐年升級緩慢;玉晶光競爭加劇侵蝕市佔。"},
+  {id:"genius_o", name:"玉晶光", stock:"3406", type:"co", tw:true, desc:"【本業】玉晶光光學鏡頭(iPhone 副供);【題材】法說級 Apple AI 影像處理升級受惠,但與大立光競爭。", timing:"2026Q1+"},
+  {id:"luxshare_t", name:"立訊", type:"co", foreign:true, desc:"中系 iPhone 主要組裝商,參考用。"},
+  {id:"epistar_f", name:"富采", stock:"3714", type:"co", tw:true, desc:"【本業】富采(晶電隆達合併控股) Mini LED + 化合物半導體;【題材】Mini LED iPad 滲透率仍低,晶電隆達合併綜效仍待驗證。", timing:"2026H2", warn:"Mini LED iPad 滲透率仍低;晶電+隆達合併綜效仍待驗證。"},
+
+  // === 量子運算鏈 ===
+  {id:"QUANTUM", name:"量子運算", type:"tech", desc:"2026 投資面新熱題:Google Willow 100 qubits 突破、Nvidia 與 Quantinuum 合作、台灣國家隊鎖定 2027 推 20 qubits。台廠以「半導體製造+ODM 投資新創」模式切入,鴻海/廣達/金寶卡位最深。"},
+  {id:"qt_hw", name:"量子硬體 / 系統", type:"subtech", desc:"超導/離子阱/光量子等量子位元硬體系統;台廠透過投資國外新創(Rigetti/SEEQC)+ 國家隊自製原型機切入。"},
+  {id:"qt_ctrl", name:"量子控制晶片 / IC", type:"subtech", desc:"量子位元的低溫控制 IC、訊號讀取與糾錯;台積電 28nm 製程微縮控制晶片 40%;金寶投資 SEEQC 切入。"},
+  {id:"qt_comm", name:"量子通訊 / 後量子密碼", type:"subtech", desc:"量子金鑰分發(QKD)+ 後量子密碼(PQC);中華電是台灣量子通訊主導者。"},
+  {id:"qt_optical", name:"光量子 / 軟體", type:"subtech", desc:"光量子技術與量子虛擬機/演算法/程式驗證;聯亞、祥茂光電、極星光電參與光量子計畫。"},
+  // 量子主要台廠(廣達/鴻海/緯創/仁寶已存,新增金寶+中華電+祥茂+極星)
+  {id:"compeq_kj", name:"金寶", stock:"2312", type:"co", tw:true, desc:"【本業】金寶仁寶集團母公司(NB ODM);【轉型】投資 SEEQC 量子控制 IC 新創;【題材】量子布局為長線題材,實質貢獻仍小。", warn:"金寶投資 SEEQC 量子控制 IC 為長線布局,實質貢獻仍小。", timing:"2027"},
+  {id:"chunghwa_t", name:"中華電信", stock:"2412", type:"co", tw:true, desc:"【本業】中華電信電信龍頭;【轉型】量子通訊主導者(QKD + 後量子密碼布局);【題材】法說級訂單,光量子計畫主要參與者。", timing:"2027"},
+  {id:"appliedo_q", name:"光鋐", stock:"4956", type:"co", tw:true, desc:"【本業】光鋐 LED 光元件;【轉型】光量子計畫參與者;【題材】國家隊光量子合作夥伴。", warn:"祥茂光電量子計畫為國家隊布局,商用化路徑長。", timing:"2027"},
+  {id:"polestar_q", name:"極星光電", type:"co", tw:true, desc:"【本業】極星光電(光量子技術新創,未上市);【題材】國家隊量子軟體計畫成員。", timing:"2027"},
+  {id:"yiyuansu", name:"一元素", type:"co", tw:true, desc:"【本業】一元素(量子軟體/虛擬機,未上市);【題材】國家隊光量子計畫成員。", timing:"2027"},
+
+  // === Stargate / 中東 AI 主權鏈 ===
+  {id:"stargate_d", name:"Stargate 聯盟", type:"co", foreign:true, demand:true, desc:"OpenAI + Microsoft + Oracle + SoftBank + MGX 五千億美元 AI 基礎建設聯盟。Nvidia 戰略投資 1000 億美元;博通拿百億美元 ASIC 訂單;台廠跟著輝達+博通鏈外溢受惠。"},
+  {id:"humain_d", name:"沙烏地 Humain", type:"co", foreign:true, demand:true, desc:"沙烏地阿拉伯主權 AI 公司,規劃投資數百億美元建 AI 資料中心,訂購 Nvidia GB300 等;台廠 ODM(鴻海/廣達)主要受惠。"},
+  {id:"g42_d", name:"阿聯酋 G42", type:"co", foreign:true, demand:true, desc:"阿聯酋主權 AI 公司,與微軟、Nvidia 戰略結盟;Microsoft 投資 15 億美元;台廠跟微軟鏈受惠。"},
+
+
+  // ========== B+C+A 擴充:填密度 + 補冷門 + 同集團 ==========
+  // --- PCB 次主流(B) ---
+  {id:"jcb_p", name:"敬鵬", stock:"2355", type:"co", tw:true, desc:"【本業】敬鵬車用 PCB 龍頭;【題材】AI 伺服器 PCB 切入。"},
+  {id:"chinpoon", name:"志超", stock:"8213", type:"co", tw:true, desc:"【本業】志超 PCB;【題材】AI 伺服器 PCB 外溢受益。"},
+  {id:"chinPoligon", name:"博智", stock:"8155", type:"co", tw:true, desc:"【本業】博智 PCB 高頻網通板;【題材】AI 伺服器+衛星 PCB 受惠。"},
+  {id:"flexium", name:"嘉聯益", stock:"6153", type:"co", tw:true, desc:"【本業】嘉聯益軟板(iPhone 鏈);【題材】Apple 鏈+AI 邊緣裝置受惠。"},
+  {id:"dynamic_e", name:"定穎投控", stock:"3715", type:"co", tw:true, desc:"【本業】定穎投控 PCB;【題材】車用+AI 伺服器 PCB 雙軌。"},
+  {id:"unitech_pcb", name:"楠梓電", stock:"2316", type:"co", tw:true, desc:"【本業】楠梓電 PCB;【題材】AI 伺服器 PCB 外溢受益。"},
+  {id:"chinPolyt", name:"柏承", stock:"6141", type:"co", tw:true, desc:"【本業】柏承 PCB;【題材】AI 伺服器 PCB 受惠。"},
+  {id:"thaipcb", name:"泰鼎-KY", stock:"4927", type:"co", tw:true, desc:"【本業】泰鼎-KY PCB;【題材】AI 伺服器 PCB 外溢受益。"},
+  {id:"globalpcb", name:"競國", stock:"6108", type:"co", tw:true, desc:"【本業】競國 PCB;【題材】AI 伺服器 PCB 外溢受益。"},
+  {id:"glory_e", name:"邑昇", stock:"5291", type:"co", tw:true, desc:"【本業】邑昇電子;【題材】AI 伺服器 PCB 受惠。"},
+  {id:"tripod_t", name:"瀚宇博", stock:"5469", type:"co", tw:true, desc:"【本業】瀚宇博 PCB;【題材】AI 伺服器 PCB 外溢受益。"},
+
+  // --- 散熱次主流(B) ---
+  {id:"sunon", name:"建準", stock:"2421", type:"co", tw:true, desc:"【本業】散熱風扇(建準集團),AI 伺服器氣冷受惠。", timing:"2026Q1+"},
+  {id:"lotes_t", name:"力致", stock:"3483", type:"co", tw:true, desc:"【本業】力致 AI 散熱供應鏈中游;【轉型】GB300 散熱模組主力;【題材】法說級美系 Tier-1 訂單。", timing:"2026Q1+"},
+  {id:"superalloy", name:"超眾", stock:"6230", type:"co", tw:true, desc:"【本業】3DVC 散熱模組;【題材】AI 伺服器散熱規格升級受惠。", timing:"2026Q1+"},
+  {id:"adda", name:"亞細亞", stock:"3169", type:"co", tw:true, desc:"【本業】散熱風扇,EC Fan 切入 AI 伺服器氣冷市場。", timing:"2026Q1+"},
+  {id:"yenSun", name:"元山", stock:"6275", type:"co", tw:true, desc:"【本業】散熱風扇(元山),AI 伺服器氣冷受惠。", timing:"2026Q1+"},
+
+  // --- 電源/連接器/機構 次主流(B) ---
+  {id:"liangwei", name:"良維", stock:"6290", type:"co", tw:true, desc:"【本業】良維連接線(車用+工業);【題材】AI 機櫃電源+EV 雙軌外溢受益。"},
+  {id:"chh", name:"健和興", stock:"3003", type:"co", tw:true, desc:"【本業】健和興連接器 + 線束;【轉型】AI 機櫃 ORV3 大電流配電核心;【題材】法說級訂單,但紅鏈如立訊認證後可能引發殺價。"},
+  {id:"vanjacent", name:"凡甲", stock:"3526", type:"co", tw:true, desc:"【本業】凡甲連接器中型廠;【題材】AI 機櫃 ORV3 線束外溢受益。"},
+  {id:"aibao", name:"營邦", stock:"3693", type:"co", tw:true, desc:"【本業】營邦專注高階儲存+ AI 伺服器機殼;【轉型】AMD 法說鏈承接 2026H2 Helios 機櫃 ODM;【題材】客製化能力強,但規模較小。"},
+
+  // --- 伺服器零組件補完(B/C) ---
+  {id:"yulon_p", name:"宇隆", stock:"2233", type:"co", tw:true, desc:"【本業】宇隆鎢鋼刀具(已驗證);【題材】機器人+精密加工外溢受益。"},
+  {id:"sintec", name:"智伸科", stock:"4551", type:"co", tw:true, desc:"【本業】智伸科精密金屬零件;【題材】機器人零件外溢受益。"},
+
+  // --- IC 設計補完(C) ---
+  {id:"novatek", name:"聯詠", stock:"3034", type:"co", tw:true, desc:"【本業】顯示驅動 IC 龍頭(電視/手機);【轉型】跨入 SoC + Apple Intelligence 鏈;【題材】Apple 法說級訂單。", timing:"2026Q1+"},
+  {id:"raydium", name:"瑞鼎", stock:"3592", type:"co", tw:true, desc:"【本業】瑞鼎顯示驅動 IC;【題材】DDI 競爭激烈,聯詠/天鈺夾擊,觸控 IC 利潤遞減。", warn:"顯示驅動 IC 競爭激烈,聯詠/天鈺夾擊;觸控 IC 利潤遞減。", timing:"2026Q1+"},
+  {id:"pixart", name:"原相", stock:"3227", type:"co", tw:true, desc:"【本業】原相光學感測 IC(Apple Mac/iPad 觸控板 CIS);【題材】AI 機器人視覺貢獻仍小,主要支撐為 Mac/iPad。", warn:"光學感測 IC 規模小,Mac/iPad 觸控板訂單為主要支撐;AI 機器人視覺貢獻仍小。", timing:"2026Q1+"},
+  {id:"vivotek", name:"晶睿", stock:"3454", type:"co", tw:true, desc:"【本業】晶睿網路攝影機+ AI 影像辨識;【題材】AI 安防受惠,但海康/大華削價壓力大。", warn:"網路攝影機面臨海康/大華削價,中國市場壓力大。", timing:"2026H2"},
+  {id:"global_u", name:"鈺立微", stock:"6731", type:"co", tw:true, desc:"【本業】鈺立微 3D 視覺 IC;【題材】3D 視覺規模小,客戶導入速度緩慢。", warn:"3D 視覺 IC 規模小,客戶導入速度緩慢。", timing:"2026H2"},
+  {id:"silergy", name:"矽力-KY", stock:"6415", type:"co", tw:true, desc:"【本業】矽力-KY 類比/PMIC;【題材】高度仰賴中國消費電子,華為去 X 化政策影響大。", warn:"類比/PMIC 高度仰賴中國消費電子,華為去 X 化政策影響大。", timing:"2026Q1+"},
+  {id:"ali", name:"揚智", stock:"3041", type:"co", tw:true, desc:"【本業】SoC 設計;【轉型】跨入 AI 邊緣;【題材】規模小,初期成果不彰。", warn:"SoC 設計規模小,跨入 AI 邊緣初期成果不彰。", timing:"2026H2"},
+
+  // --- 同集團延伸(A) ---
+  {id:"chilisin", name:"奇力新", stock:"2456", type:"co", tw:true, desc:"【本業】奇力新 電感 + 高階被動;【轉型】AI 晶片電感升級;【題材】高階電感受惠。", timing:"2026Q1+"},
+  {id:"taiclin", name:"智寶", stock:"8068", type:"co", tw:true, desc:"【本業】智寶鋁電容;【題材】鋁電容漲價外溢受益。", timing:"2026Q1+"},
+  {id:"yulon_g", name:"台星科", stock:"3265", type:"co", tw:true, desc:"【本業】台星科封測廠 IC 及其測試機組之研發及測試;【題材】半導體景氣 + AI 後段封測雙軌受惠,2026/5/22 連續創高。", timing:"2026Q1+"},
+{id:"deltaopto", name:"中達電通", type:"co", tw:true, desc:"【本業】台達電中國子公司(工業自動化通路);【題材】機器人 + 智慧工廠外溢受益。"},
+
+  // --- 邊緣/AI PC 補完(D 部分) ---
+  {id:"aaeon", name:"研華", stock:"2395", type:"co", tw:true, desc:"【本業】研華工業電腦+邊緣 AI 平台龍頭;【題材】邊緣 AI/智慧工廠/機器人外溢受益。", timing:"2026H2"},
+  {id:"axiomtek", name:"艾訊", stock:"3088", type:"co", tw:true, desc:"【本業】艾訊工業電腦;【題材】邊緣 AI + 工業 IoT 受惠。"},
+
+  // --- CSP 周邊+冷門(C) ---
+  {id:"sinopower", name:"銘異", stock:"3060", type:"co", tw:true, desc:"【本業】銘異 AI 伺服器/機構件供應鏈;【題材】機構件規格升級受惠。"},
+  {id:"posiflex", name:"飛捷", stock:"6206", type:"co", tw:true, desc:"【本業】飛捷工業電腦/POS;【題材】智慧零售+邊緣 AI 受惠。"},
+
+  // --- 矽光子/光通訊補完(C) ---
+  {id:"applied_o", name:"應華", stock:"5392", type:"co", tw:true, desc:"【本業】應華光通訊+精密金屬機構件;【題材】CPO 鏈協力供應商。"},
+  {id:"chenming", name:"喬鼎", stock:"3057", type:"co", tw:true, desc:"【本業】喬鼎光通訊元件+感測 IC;【題材】光通訊外溢受益。"},
+
+  // --- 機器人補完(C) ---
+  {id:"airtac", name:"亞德客-KY", stock:"1590", type:"co", tw:true, desc:"【本業】亞德客-KY 氣動元件全球前三大;【題材】機器人+智慧工廠核心元件。", timing:"2026H2"},
+  {id:"systex", name:"精誠資訊", stock:"6214", type:"co", tw:true, desc:"【本業】精誠資訊 IT 系統整合;【轉型】AI 應用整合服務+智慧工廠軟硬整合;【題材】AI 落地受惠。"},
+
+  // --- 車用 SoC/材料補完(D) ---
+
+  // ===== 下游 CSP / 客戶端(demand 需求方) =====
+  {id:"nvidia_d", name:"Nvidia 輝達", type:"co", foreign:true, demand:true, desc:"AI 加速器絕對龍頭(出貨量 8 成),GB200/GB300/Rubin 平台,台廠最大客戶。"},
+  {id:"aws", name:"AWS 亞馬遜", type:"co", foreign:true, demand:true, desc:"全球最大 CSP,自研 Trainium/Inferentia ASIC,世芯為主要設計夥伴;緯穎深度綁定。"},
+  {id:"google_d", name:"Google", type:"co", foreign:true, demand:true, desc:"自研 TPU v6/v7/v8,聯發科操刀 TPU v8 推論版設計;旺矽/雍智切入 TPU 測試鏈。"},
+  {id:"microsoft", name:"Microsoft", type:"co", foreign:true, demand:true, desc:"自研 Maia ASIC,創意傳為協力夥伴;緯創掌握 Azure 訂單。"},
+  {id:"meta_d", name:"Meta", type:"co", foreign:true, demand:true, desc:"自研 MTIA ASIC,聯發科協力;廣達主要 ODM 夥伴。"},
+  {id:"openai", name:"OpenAI", type:"co", foreign:true, demand:true, desc:"與博通簽百億美元 ASIC 訂單,2026 量產;Nvidia 戰略投資至少千億美元。", timing:"2027"},
+  {id:"spacex_d", name:"SpaceX", type:"co", foreign:true, demand:true, desc:"Starlink 在軌衛星突破萬顆,2026 估值上看 1.5 兆美元;華通 PCB 市佔 9 成,昇達科衛星營收 8 成。"},
+
+  {id:"yuchuan", name:"宇川", stock:"7855", type:"co", tw:true, desc:"【本業】宇川金屬有機前驅物 ALD 製程;【轉型】主力 TMAI(High K 前驅物);【題材】2026/1 興櫃,先進製程材料在地化。", timing:"2027"},
+
+  // ===== 機器人 / 實體 AI(第 13 大分類) =====
+  // 子分類
+  {id:"rb_part", name:"上游關鍵零組件", type:"subtech", desc:"減速器、滾珠螺桿、線性滑軌、伺服馬達等;人形機器人全身 40+ 自由度關節推動高功率密度馬達與微型致動器需求。"},
+  {id:"rb_act", name:"致動器 / 諧波減速機", type:"subtech", desc:"高功率密度馬達與諧波/行星減速機,直接影響關節密度與精度;NSK、台灣精銳、和大切入。"},
+  {id:"rb_int", name:"系統整合 / 整機 ODM", type:"subtech", desc:"把大腦跟手腳連在一起;EMS 量體最大,鴻海與 NVIDIA/Intrinsic/Robust.AI 合作,台達電與 NVIDIA Jetson/Isaac 合作。"},
+  {id:"rb_vision", name:"AI 視覺 / 感測 / 觸覺", type:"subtech", desc:"3D 視覺、觸覺回饋、深度感測;機器人與環境互動的眼睛和皮膚。"},
+  {id:"rb_edge", name:"邊緣運算 / 智慧工廠", type:"subtech", desc:"機器人神經系統,嵌入式 AI 模組,離線運算核心。"},
+
+  // 機器人台廠
+  {id:"hiwin", name:"上銀", stock:"2049", type:"co", tw:true, desc:"【本業】上銀線性滑軌 + 滾珠螺桿;【轉型】人形機器人關節 + 大立光太空跨界;【題材】2025 中國需求疲弱,人形機器人題材實質佔比低。", warn:"線性滑軌與工具機景氣連動,2025 中國市場需求仍弱;機器人題材實質佔比低。", timing:"2026Q1+"},
+  {id:"hota", name:"和大", stock:"1536", type:"co", tw:true, desc:"【本業】和大減速齒輪 + 車用變速箱;【轉型】人形機器人減速齒輪;【題材】2026 實質貢獻有限,放量時程未確定。", timing:"2026H2", warn:"減速齒輪人形機器人放量時程未確定,2026 實質貢獻有限。", timing:"2026H2"},
+  {id:"apex_dyn", name:"台灣精銳", stock:"4583", type:"co", tw:true, desc:"【本業】台灣精銳精密減速機;【題材】公告級 Amazon 認證,機器人關節受惠。", warn:"Amazon 認證+人形機器人需求屬大機會,惟人形機器人實際量產時程與單機減速機用量仍在演進,2026 數量是否如預期(10 萬顆以上)需追蹤。"},
+  {id:"ying_han", name:"穎漢", stock:"4562", type:"co", tw:true, desc:"【本業】穎漢精密零組件;【題材】機器人/精密加工受惠。", timing:"2026H2"},
+  {id:"hiwin_micro", name:"大銀微系統", stock:"4576", type:"co", tw:true, desc:"【本業】大銀微諧波減速機 + 微型線性傳動;【題材】規模小,人形機器人客戶導入速度緩慢。", warn:"大銀微系統規模小,人形機器人客戶導入速度緩慢。", timing:"2026H2"},
+  {id:"chichu", name:"直得", stock:"1597", type:"co", tw:true, desc:"【本業】直得線性滑軌;【轉型】Dexterity/波士頓動力客戶;【題材】實質貢獻仍小。", warn:"直得線性滑軌客戶 Dexterity/波士頓動力,實質貢獻仍小。", timing:"2026H2"},
+  // 整機 ODM(部分既有公司跨界:foxconn/delta/test_research)
+  {id:"techman", name:"達明機器人", stock:"4585", type:"co", tw:true, desc:"【本業】達明機器人協作型 AI Cobot(廣達子公司);【轉型】NVIDIA Isaac 平台合作;【題材】法說級訂單,人形機器人量產時程多次遞延。", timing:"2026H2"},
+  {id:"quanta_storage", name:"廣明", stock:"6188", type:"co", tw:true, desc:"【本業】廣明儲存裝置 + 機器人控制器;【題材】母公司廣達訂單外溢時程不確定,規模小。"},
+  {id:"solomon", name:"所羅門", stock:"2359", type:"co", tw:true, desc:"【本業】所羅門 AI 視覺 + 工業自動化;【題材】人形機器人放量時程影響業績,營收結構小。", warn:"所羅門 AI 視覺營收結構小,人形機器人放量時程影響業績。", timing:"2026H2"},
+  {id:"logah", name:"羅昇", stock:"8374", type:"co", tw:true, desc:"【本業】羅昇機器人系統整合;【題材】智慧工廠+機器人受惠。", timing:"2026H2"},
+  // AI 視覺/感測(部分既有)
+  {id:"coretronic", name:"中光電", stock:"5371", type:"co", tw:true, desc:"【本業】中光電光學/投影/3D 視覺感測;【題材】機器人視覺受惠,投影機本業景氣循環大。", warn:"中光電 3D 感測+投影機本業景氣循環大。", timing:"2026H2"},
+  {id:"adlink", name:"凌華", stock:"6166", type:"co", tw:true, desc:"【本業】凌華工業電腦 + 邊緣 AI;【題材】機器人 + 智慧工廠受惠。"},
+  {id:"genius", name:"昆盈", stock:"2365", type:"co", tw:true, desc:"【本業】昆盈電腦周邊(鍵鼠/耳機);【題材】機器人 AI 視覺感測題材外溢受益。", timing:"2026H2"},
+
+  // ===== 低軌衛星 / 太空(第 14 大分類) =====
+  // 子分類
+  {id:"sat_pcb", name:"衛星 PCB / 高頻載板", type:"subtech", desc:"低軌衛星高頻 PCB 與高速基板;華通 Starlink 太空板市佔約 9 成。"},
+  {id:"sat_rf", name:"毫米波 / 射頻元件", type:"subtech", desc:"衛星酬載核心:毫米波元件、相位陣列天線、射頻模組;昇達科是衛星酬載大廠、SpaceX 來台密訪重點對象。"},
+  {id:"sat_ground", name:"地面接收設備 / 終端", type:"subtech", desc:"Starlink 用戶終端、地面站、天線整合;啟碁切入地面接收設備。"},
+  {id:"sat_payload", name:"衛星本體 / 封裝結構", type:"subtech", desc:"FOPLP Chip-First 衛星封裝、結構件、太陽能板;群創 FOPLP 切入 SpaceX,元晶太陽能板。"},
+
+  // 衛星台廠
+  {id:"compeq", name:"華通", stock:"2313", type:"co", tw:true, desc:"【本業】華通 PCB;【轉型】Starlink 衛星 PCB 市佔約 9 成;【題材】SpaceX 法說明確,但客戶集中度極端,需求週期受 SpaceX 主導。", warn:"Starlink PCB 市佔約 9 成,但客戶集中度極端(SpaceX),任一規格/供應商分散決策皆是重大風險。"},
+  {id:"sdt", name:"昇達科", stock:"3491", type:"co", tw:true, desc:"【本業】昇達科衛星射頻元件;【轉型】SpaceX 來台擴單;【題材】法說級訂單,但衛星營收 8 成依賴 SpaceX,客戶集中度極端。", warn:"衛星營收占比 8 成,SpaceX 是唯一大客戶,客戶集中度為最大風險。"},
+  {id:"sercomm", name:"啟碁", stock:"6285", type:"co", tw:true, desc:"【本業】啟碁網通設備;【轉型】衛星終端切入;【題材】法說級 Starlink 訂單,但客戶集中度+毛利壓力為主要風險。", warn:"衛星終端為大機會,但 Starlink 集中度+毛利壓力為主要風險。", timing:"2026Q1+"},
+  {id:"micro_star", name:"同欣電", stock:"6271", type:"co", tw:true, desc:"【本業】同欣電 RF 模組 + 混合 IC;【轉型】SpaceX/Starlink 供應鏈;【題材】衛星射頻外溢受益。", timing:"2026Q1+"},
+  {id:"taiyang", name:"台揚", stock:"2314", type:"co", tw:true, desc:"【本業】台揚衛星地面接收設備+網通;【題材】台灣 Starlink 落地受惠。", timing:"2026Q1+"},
+  {id:"yagain", name:"耀登", stock:"3138", type:"co", tw:true, desc:"【本業】耀登毫米波天線 + 5G 模組;【題材】商規 5G 與衛星雙線進展速度不一,競爭激烈。", warn:"毫米波天線競爭激烈;商規 5G 與衛星雙線進展速度不一。", timing:"2026Q1+", timing:"2027"},
+  {id:"wantai", name:"萬泰科", stock:"6190", type:"co", tw:true, desc:"【本業】萬泰科電源 IC;【題材】AI 電源規格升級外溢受益。", timing:"2026Q1+"},
+  {id:"radiant", name:"燿華", stock:"2367", type:"co", tw:true, desc:"【本業】燿華 PCB + 衛星 PCB;【題材】SpaceX 鏈外溢受益。", timing:"2026Q1+"},
+  {id:"sunpower_tw", name:"元晶", stock:"6443", type:"co", tw:true, desc:"【本業】元晶太陽能模組;【轉型】SpaceX 衛星本體太陽能板供應鏈;【題材】太空太陽能受惠。"},
+  {id:"shih_hsin", name:"事欣科", stock:"4916", type:"co", tw:true, desc:"【本業】事欣科衛星 PCB + 結構件;【題材】SpaceX 鏈外溢受益。", timing:"2026H2", timing:"2027"},
+  // ========== E: 玻璃基板/散熱再下挖 ==========
+  // 玻璃基板更細(掛在 pkg_glass 之下)
+  {id:"gcs_laser_mod", name:"雷射改質(成孔關鍵)", type:"target", desc:"以雷射改變玻璃局部結構,使蝕刻後形成通孔;鈦昇與 Intel 合作的核心技術,2026 商轉首發。"},
+  {id:"gcs_etch", name:"濕式蝕刻(成孔)", type:"target", desc:"承接雷射改質後的化學蝕刻,將改質區域擴展成 TGV 通孔;氣相蝕刻(晶呈科 LADY)與濕蝕刻並存。"},
+  {id:"gcs_seed", name:"RDL 晶種層濺鍍", type:"target", desc:"TGV 通孔金屬化前的晶種層真空濺鍍;友威科技 PVD 設備直接受惠。"},
+  {id:"gcs_fill", name:"通孔金屬填充", type:"target", desc:"電鍍或物理填充將 TGV 通孔填滿銅;晶呈科專利技術,提高良率。"},
+
+  // 散熱更細
+  {id:"th_qdc", name:"水冷快接頭 QD", type:"target", desc:"GB300 機櫃必備的快速接頭,單櫃可達數十顆;富世達切入。"},
+  {id:"th_sidecar", name:"Sidecar 水冷機櫃", type:"target", desc:"水冷分配機櫃 Sidecar,Meta 4 萬櫃訂單;晟銘電突破技術瓶頸,與廣達合作出貨。"},
+  {id:"th_ihs_lid", name:"均熱片 IHS / Lid", type:"target", desc:"晶片頂蓋均熱片,GB300/Rubin 規格升級單位產值倍增;健策主力。"},
+  {id:"th_dual_flow", name:"雙向式水冷(6kW 解熱)", type:"target", desc:"奇鋐新研發的雙向水冷技術,解熱效能達 6kW,應對 GPU/ASIC 熱功耗暴增。"},
+
+  // 富世達(QD 接頭龍頭)若未存在則新增
+
+  // ========== 漏網之魚補完(光通訊核心 + 化合物半導體 + 先進封裝材料) ==========
+  // 光通訊主力 - 化合物半導體三五族代工
+  {id:"globalcomm", name:"環宇-KY", stock:"4991", type:"co", tw:true, desc:"【本業】環宇-KY 化合物半導體三五族代工(GaAs/InP/GaN);【轉型】800G PD 全球第一(自有品牌 KGD 佔營收 66%);【題材】法說級訂單,2026 800G 出貨翻倍至 4000 萬套,美系 CSP 主要供應商。", timing:"2026Q1+"},
+  {id:"foryard", name:"前鼎", stock:"4908", type:"co", tw:true, desc:"【本業】前鼎光通訊主動元件;【題材】持續創歷史新高,但 1.6T 認證進度需追蹤。", warn:"前鼎光通訊雖創高,但 1.6T 認證進度需追蹤。", timing:"2026Q1+"},
+  {id:"axgyo", name:"宏捷科", stock:"8086", type:"co", tw:true, desc:"【本業】宏捷科化合物半導體代工 + 太陽能電池;【轉型】VCSEL 切入 AI 資料中心高速傳輸 400G/800G;【題材】光通訊+太陽能雙軌成長,但實際量產時點仍不明確。", warn:"宏捷科 VCSEL 切入 AI 雖卡位,但實際量產時點仍不明確。", timing:"2026H2"},
+  {id:"linkjet", name:"聯鈞", stock:"3450", type:"co", tw:true, desc:"【本業】聯鈞光通訊元件;【題材】跟漲指標族群,但 1.6T 量產時程影響業績。", warn:"聯鈞光通訊規模小,1.6T 量產時程影響業績。", timing:"2026Q1+"},
+  {id:"yija", name:"毅嘉", stock:"2402", type:"co", tw:true, desc:"【本業】毅嘉軟性印刷電路板 FPC 大廠;【轉型】跨界光通訊後段封裝;【題材】1.6T 規格升級分食封裝/散熱/組裝外溢商機。", timing:"2026H2"},
+
+  // 先進封裝乾膜光阻
+  {id:"chempion", name:"勤凱", stock:"4760", type:"co", tw:true, desc:"【本業】勤凱先進封裝乾膜光阻(Dry Film);【轉型】CoWoS 製程材料台積電直接客戶;【題材】法說級訂單,先進封裝擴產直接受惠。", timing:"2026Q1+"},
+
+  // 矽光子製程整合(台積電子公司)
+  {id:"vislink", name:"采鈺", stock:"6789", type:"co", tw:true, desc:"【本業】采鈺 CMOS 影像感測 IC(台積電子公司);【轉型】矽光子製程整合,台積電 COUPE 先進封裝鏈;【題材】CPO 鏈關鍵。", timing:"2026H2"},
+
+  // 美達科技(矽光子/光通訊)
+  {id:"meda", name:"美達科技", stock:"6735", type:"co", tw:true, desc:"【本業】美達科技半導體測試儀器之製造銷售;【題材】矽光子 CPO 鏈題材股,與光聖等並列指標股,2024 起連續創高。", timing:"2026Q1+"},
+
+  // 創威(光通訊新興)
+  {id:"chuangwei", name:"聖暘", stock:"7766", type:"co", tw:true, desc:"【本業】聖暘工程整合服務;【題材】光通訊新興題材外溢受益,2026 連續創高。", timing:"2026H2"},
+
+  // 台通(光纖)
+  {id:"taitone", name:"台通", stock:"8011", type:"co", tw:true, desc:"【本業】台通光纖光纜;【題材】光通訊基礎材料受惠 800G 升級。", timing:"2026H2"},
+
+  // ========== 漏網之魚補完(二輪):高速 IC + 測試封測 + 散熱 + 電源 + 光通訊 ==========
+  // 高速介面 IC / BMC / 控制 IC
+  {id:"parade", name:"譜瑞-KY", stock:"4966", type:"co", tw:true, desc:"【本業】譜瑞-KY Retimer/Redriver IC 龍頭(DisplayPort/PCIe);【轉型】AI GPU 板必備 PCIe 高速介面;【題材】Nvidia/AMD 法說級訂單。", timing:"2026Q1+"},
+  {id:"aspeed", name:"信驊", stock:"5274", type:"co", tw:true, desc:"【本業】信驊 BMC IC 全球市佔 70%;【題材】每台 AI 伺服器必備一顆,法說級訂單。", timing:"2026Q1+"},
+  {id:"asmedia", name:"祥碩", stock:"5269", type:"co", tw:true, desc:"【本業】祥碩 USB/PCIe 控制 IC;【轉型】AMD 主要 IP 合作夥伴,AI 主機板與 NB 受惠;【題材】競爭加劇。", warn:"祥碩 USB/PCIe 控制 IC 高度依賴 AMD 出貨;競爭加劇。", timing:"2026Q1+"},
+  {id:"airoha", name:"立積", stock:"4968", type:"co", tw:true, desc:"【本業】立積 WiFi RF FEM 射頻前端 IC 龍頭;【題材】AI 邊緣裝置 + WiFi 7 換代,但 Skyworks/Qorvo 競爭。", warn:"立積 WiFi RF FEM 高度仰賴消費電子;Skyworks/Qorvo 競爭。", timing:"2026Q1+"},
+
+  // 測試封測補完
+  {id:"sigurd_t", name:"矽格", stock:"6257", type:"co", tw:true, desc:"【本業】矽格封測廠,Wifi/車用/AI 多軌;【題材】訂單分散度高,規模小。", warn:"矽格封測規模小,訂單分散度高。", timing:"2026Q1+"},
+  {id:"liwei", name:"訊強", stock:"5345", type:"co", tw:true, desc:"【本業】訊強 DRAM/Flash 封測;【題材】DRAM/NAND 景氣循環大。", warn:"立衛科技 DRAM/NAND 封測景氣循環大。", timing:"2026Q1+"},
+{id:"jingcaiwei", name:"精材", stock:"3374", type:"co", tw:true, desc:"【本業】精材 CIS 影像感測晶圓級封裝(WLCSP);【轉型】矽光子製程整合;【題材】CIS 出貨循環影響大,客戶集中度高。", warn:"精材 CIS WLCSP 客戶集中度高,智慧手機 CIS 出貨循環影響大。", timing:"2026H2"},
+
+  // 散熱補完
+  {id:"yejiang", name:"業強", stock:"6124", type:"co", tw:true, desc:"【本業】散熱模組,AI 伺服器氣冷+液冷雙軌。", timing:"2026Q1+"},
+  {id:"dynamic_t", name:"動力-KY", stock:"6591", type:"co", tw:true, desc:"【本業】AI 伺服器散熱模組+結構件,北美客戶比重提升。", timing:"2026Q1+"},
+
+  // 電源/功率元件補完
+  {id:"peg", name:"朋程", stock:"8255", type:"co", tw:true, desc:"【本業】朋程功率二極體 / 整流模組(車用為主);【轉型】跨入 AI 伺服器 + 資料中心 800V HVDC;【題材】法說明確 HVDC 切入,但車用主業景氣承壓。", timing:"2026H2"},
+  {id:"dah_chung", name:"大中", stock:"6435", type:"co", tw:true, desc:"【本業】大中 MOSFET / IGBT 功率元件;【題材】AI 伺服器 + EV 雙重應用受惠。", timing:"2026H2"},
+  {id:"jingli", name:"杰力", stock:"5299", type:"co", tw:true, desc:"【本業】杰力電源管理 IC;【題材】規模小,競爭激烈。", warn:"杰力電源 IC 規模小,競爭激烈。", timing:"2026Q1+"},
+  {id:"tongjia", name:"通嘉", stock:"3588", type:"co", tw:true, desc:"【本業】通嘉電源管理 IC(AC/DC 轉換器主力);【題材】客戶分散度高,本業景氣循環大。", warn:"通嘉電源 IC 客戶分散度高,本業景氣循環大。", timing:"2026H2"},
+  {id:"global_mix", name:"致新", stock:"8081", type:"co", tw:true, desc:"【本業】致新電源管理 IC 大廠;【題材】AI PC + 伺服器電源升級雙軌,但 Silergy 夾擊。", warn:"致新電源管理 IC 競爭加劇,Silergy 夾擊。", timing:"2026Q1+"},
+
+  // 光通訊機構/結構
+  {id:"shangping", name:"上品", stock:"4770", type:"co", tw:true, desc:"【本業】上品氟塑料+特氣設備容器(半導體製程);【轉型】跨界光通訊機殼/結構件;【題材】半導體+光通訊雙軌受惠。", timing:"2026Q1+"},
+
+  // 設備耗材
+  {id:"siangmin", name:"翔名", stock:"8091", type:"co", tw:true, desc:"【本業】翔名半導體設備耗材+陶瓷零件;【題材】台積電擴產直接受惠,規模小客戶集中度高。", warn:"翔名設備耗材規模小,訂單能見度短;客戶集中度高。", timing:"2026Q1+"},
+
+  // ========== 台積電擴產廠務工程鏈(漏網重補) ==========
+  {id:"yason", name:"亞翔", stock:"6139", type:"co", tw:true, desc:"【本業】亞翔無塵室機電大廠;【轉型】通吃台積電/聯電/美光;【題材】法說級訂單,在手 2,084 億新高,2025 EPS 30.51 元連續創高。", timing:"2026Q1+"},
+  {id:"yangkee", name:"洋基工程", stock:"6691", type:"co", tw:true, desc:"【本業】洋基工程廠務五雄 (新代號 6691);【轉型】美系大廠 200 億大單;【題材】法說級訂單,廠務工程主供。", timing:"2026Q1+"},
+  {id:"sunsing", name:"聖暉*", stock:"5536", type:"co", tw:true, desc:"【本業】聖暉*廠務五雄;【題材】法說級訂單,海內外無塵室訂單同步暢旺。", timing:"2026Q1+"},
+  {id:"hanco", name:"漢科", stock:"3402", type:"co", tw:true, desc:"【本業】漢科(漢民集團上市公司)半導體設備代理+精密配管+特殊工程;【題材】台積電擴產直接受惠,獨立性受限。", timing:"2026Q1+"},
+  {id:"silstandard", name:"信紘科", stock:"6667", type:"co", tw:true, desc:"【本業】信紘科廠務供應系統整合(化學/研磨液/特氣);【轉型】南寶+新應材合資攻先進封裝膠材;【題材】法說級訂單,台積電佔營收逾 5 成。", timing:"2026Q1+"},
+  {id:"ruize", name:"銳澤", stock:"7703", type:"co", tw:true, desc:"【本業】銳澤半導體精密配管專業廠;【題材】廠務工程細分龍頭,規模小。", timing:"2026Q1+"},
+  {id:"prefab", name:"朋億", stock:"6613", type:"co", tw:true, desc:"【本業】朋億* 廠務供應系統(中華化關係企業);【題材】半導體擴產受惠。", timing:"2026Q1+"},
+
+  // ========== narrative.md 比對補完(Batch 1+2+3) ==========
+  // 01 CSP ASIC
+  {id:"icevo", name:"意騰-KY", stock:"7749", type:"co", tw:true, desc:"【本業】邊緣 AI ASR 語音辨識 IC 設計;【轉型】Always-On 低功耗麥克風 SoC 切入 CSP;【題材】CSP ASIC 鏈直接受益,但邊緣 AI ASR 市場仍小,放量速度待觀察。", warn:"邊緣 AI ASR 市場仍小,CSP 訂單放量速度待觀察。", timing:"2026Q1+"},
+  // 02 BBU/HVDC
+  {id:"sundpower", name:"順達", stock:"3211", type:"co", tw:true, desc:"【本業】順達筆電鋰電池模組;【轉型】高壓 BBU 直供 CSP;【題材】法說級訂單,但與台達電/光寶生態系綁定,客戶集中度高。", warn:"BBU 高度依賴台達電/光寶生態系,客戶集中度高。", timing:"2026Q1+"},
+  {id:"aes_ky", name:"AES-KY", stock:"6781", type:"co", tw:true, desc:"【本業】AES-KY 大型工業電池+儲能;【轉型】高壓 BBU 切入 800V HVDC;【題材】與台達電生態系綁定,800V 滲透率為觀察。", warn:"與台達電生態系綁定,訂單能見度需觀察 800V 滲透率。", timing:"2026H2"},
+  // 05 DDR4
+  {id:"esmt", name:"晶豪科", stock:"3006", type:"co", tw:true, desc:"【本業】晶豪科利基型 DRAM 設計;【轉型】DDR4 缺口主力;【題材】網通/工控/車用客戶需求強勁,若美光提前釋出產能風險。", warn:"DDR4 缺口若美光提前釋出產能,題材即告終;利基型 DRAM 需求循環大。", timing:"2026Q1+"},
+  {id:"psc", name:"力積電", stock:"6770", type:"co", tw:true, desc:"【本業】力積電晶圓代工廠;【轉型】DDR4 利基製程+成熟製程雙軌,CSP 客戶包廠;【題材】法說級訂單,但成熟製程競爭激烈。", warn:"晶圓代工成熟製程競爭激烈;DDR4 訂單能見度受美光影響。", timing:"2026Q1+"},
+  {id:"etron", name:"鈺創", stock:"5351", type:"co", tw:true, desc:"【本業】鈺創利基型 DRAM 設計;【題材】DDR4 結構性缺口直接受益,但客戶議價力強。", warn:"利基 DRAM 訂單分散度高,客戶議價力強。", timing:"2026H2"},
+  // 10 再生晶圓
+  {id:"sumco_sun", name:"昇陽半", stock:"8028", type:"co", tw:true, desc:"【本業】昇陽半再生晶圓主力;【轉型】先進製程 + HBM 剛性消耗品,月產能 120 萬片;【題材】法說明確擴產。", warn:"競爭對手大量擴產可能引發價格戰;受先進製程擴產節奏影響。", timing:"2026Q1+"},
+  // 13 無人機(新分類)
+  {id:"UAV", name:"無人機", type:"tech", desc:"narrative 題材 13:地緣政治+去紅色供應鏈,國防預算擴編及商規軍用無人機本土採購大爆發。"},
+  {id:"uav_main", name:"整機/國防主力", type:"subtech", desc:"無人機整機研發+軍方標案實績。"},
+  {id:"uav_part", name:"關鍵零組件", type:"subtech", desc:"地面控制+軍規通訊+結構件。"},
+  {id:"thunder", name:"雷虎", stock:"8033", type:"co", tw:true, desc:"【本業】雷虎模型製造老牌(無人機整機研發);【轉型】軍規無人機國家隊主力;【題材】法說級訂單,國防自主政策直接受益。", warn:"無人機標案高度依賴國防預算政治週期,且軍規驗證冗長;商規拓展速度待觀察。", timing:"2026Q1+"},
+  {id:"aidc_t", name:"漢翔", stock:"2634", type:"co", tw:true, desc:"【本業】漢翔航空工業龍頭(F-16V 主力);【轉型】無人機+國機國造;【題材】法說級訂單,但毛利率為觀察重點。", warn:"航空大廠營收與國防預算編列高度連動,專案毛利率為觀察重點。", timing:"2026Q1+"},
+  {id:"getac", name:"神基", stock:"3005", type:"co", tw:true, desc:"【本業】神基強固型工業電腦;【轉型】軍規無人機地面控制設備;【題材】法說級訂單,但軍規業務貢獻仍有限。", warn:"強固型工業電腦本業受車用/工業景氣影響;軍規業務貢獻仍有限。", timing:"2026Q1+"},
+  {id:"qcomm_tw", name:"全訊", stock:"5222", type:"co", tw:true, desc:"【本業】全訊軍規通訊元件(GaN 射頻);【題材】無人機+軍用射頻供應鏈,規模小訂單能見度短。", warn:"軍規通訊元件規模小,訂單能見度短。", timing:"2026H2"},
+  // 15 廠務基建
+  {id:"yangkee_alt", name:"洋基工程(舊代號)", stock:"6603", type:"co", tw:true, desc:"【本業】洋基工程舊代號(6603,2024 起為 6691);【題材】廠務工程五雄,先進製程廠務受惠。", warn:"廠務五雄競爭激烈;台電擴產撥款節奏影響業績。", timing:"2026Q1+"},
+  {id:"qianfu", name:"千附", stock:"8383", type:"co", tw:true, desc:"【本業】千附半導體真空腔體+水處理系統(注意:股號 8383,與量子 6829 千附精密不同公司);【題材】埃米級廠務升級剛需,客戶單一風險。", warn:"廠務真空腔體為利基,訂單能見度受台積電擴產節奏影響。", timing:"2026Q1+"},
+  {id:"zhaolian", name:"兆聯實業", stock:"6944", type:"co", tw:true, desc:"【本業】兆聯實業廠務基建;【題材】半導體擴產周邊間接受惠,獨立題材性弱。", warn:"廠務基建間接受益,獨立題材性弱。", timing:"2026H2"},
+  // 16 WiFi7 檢測
+  {id:"sporton", name:"耕興", stock:"6146", type:"co", tw:true, desc:"【本業】耕興全球無線檢測龍頭(WiFi 7 送件絕對龍頭);【轉型】FCC 去中化政策最大受益;【題材】法說級訂單,單月營收連續創高,但 FCC 政策變動為主要風險。", warn:"耕興 WiFi7 為去中化政策受惠,但 FCC 政策變動為主要風險;單月營收創高後成長率將遞減。", timing:"2026Q1+"},
+  {id:"dongyan", name:"東研信超", stock:"6840", type:"co", tw:true, desc:"【本業】東研信超 EMC + 安規檢測;【轉型】450kW+ 超高功率 AI 機櫃 EMC + 液冷系統檢測;【題材】法說級訂單,分食四大 CSP 整櫃測試剛需。", warn:"東研信超 EMC+液冷檢測為利基,規模仍小;CSP 整櫃測試規模放量速度為主要觀察。", timing:"2026Q1+"},
+  // 17 液冷水泵
+  {id:"dajing", name:"大井泵浦", stock:"6969", type:"co", tw:true, desc:"【本業】智慧變頻直流無刷水泵;【轉型】打破歐美日大廠長期壟斷,液冷水泵國產化龍頭;【題材】法說級 AI 訂單,但 Grundfos/Wilo 認證進度待觀察。", warn:"大井泵浦水泵國產化雖具門檻,但 Grundfos/Wilo 國際大廠虎視眈眈;認證進度為觀察點。", timing:"2026Q1+"},
+  // 18 LEO
+  {id:"micronet", name:"兆赫", stock:"2485", type:"co", tw:true, desc:"【本業】兆赫網通設備+衛星地面接收;【轉型】台灣 Starlink 落地;【題材】法說級訂單。", warn:"兆赫衛星地面接收終端規模小;Starlink 落地速度+價格戰為主要風險。", timing:"2026H2"},
+  // 19 工具機(新分類)
+  {id:"MACHINE", name:"高階工具機", type:"tech", desc:"narrative 題材 19:全球通用型工具機受日圓+紅鏈壓力,但跨界 SiC/石英硬脆材料、航太五軸重型、智慧低碳伺服壓床的特種高階機型結構性大重估。"},
+  {id:"mach_special", name:"半導體/航太特種機", type:"subtech", desc:"SiC/石英硬脆材料加工機、航太五軸重型工具機。"},
+  {id:"buffalo_m", name:"百德", stock:"4563", type:"co", tw:true, desc:"【本業】百德精密機械(半導體精密加工機);【轉型】燃料電池跨界 + 工具機高階轉型;【題材】法說級訂單,但氫能商業化進度為觀察。", warn:"燃料電池與氫能商業化進度若放緩,雙引擎變單引擎。", timing:"2026H2"},
+  {id:"tongtai", name:"東台", stock:"4526", type:"co", tw:true, desc:"【本業】東台精機半導體精密加工機 + 航太五軸重型;【題材】narrative 題材 19 直接受惠,通用型受紅鏈擠壓。", warn:"工具機景氣與日圓貶值高度連動;narrative 自身強調通用型需排除,專注高階特種機才有定價權。", timing:"2026H2"},
+  {id:"yulee", name:"協易機", stock:"4533", type:"co", tw:true, desc:"【本業】協易機伺服壓床;【轉型】智慧低碳轉型 + 特種高階機;【題材】高階壓床受惠,但傳統壓床受紅鏈壓力。", warn:"傳統壓床若沒成功跨入伺服壓床/智慧低碳轉型,毛利率仍受紅鏈低價壓力。", timing:"2026H2"},
+  {id:"gaofeng", name:"高鋒", stock:"4510", type:"co", tw:true, desc:"【本業】高鋒工業工具機高階機種;【題材】通用型工具機受日圓+紅鏈壓力,特種機型為觀察。", warn:"通用型工具機受日圓貶值+紅鏈低價競爭壓力大。", timing:"2026H2"},
+  {id:"hartford_m", name:"喬福", stock:"1540", type:"co", tw:true, desc:"【本業】喬福工具機高階機種;【題材】通用型工具機需求疲弱,特種機營收佔比為觀察。", warn:"通用型工具機需求疲弱,特種高階機型營收佔比是觀察重點。", timing:"2026H2"},
+  {id:"yacheng", name:"亞崴", stock:"1530", type:"co", tw:true, desc:"【本業】亞崴機電工具機高階五軸加工;【題材】工具機景氣循環,中國市場需求未復甦。", warn:"工具機景氣循環高度連動,中國市場需求仍未復甦。", timing:"2026H2"},
+  {id:"taichung_p", name:"程泰", stock:"1583", type:"co", tw:true, desc:"【本業】程泰機械工具機 + 鎢鋼刀具中下游;【題材】narrative 題材 33 鎢斷供關聯,工具機景氣承壓。", warn:"工具機景氣承壓;鎢鋼刀具利得需鎢價持續上漲。", timing:"2026H2"},
+  {id:"takisawa", name:"瀧澤科", stock:"6609", type:"co", tw:true, desc:"【本業】瀧澤科工具機(利基整機);【題材】規模較小,景氣循環影響大。", warn:"工具機利基機種,規模較小,景氣循環影響大。", timing:"2026H2"},
+  // 20 SiC 補完
+  {id:"taiji", name:"太極", stock:"4934", type:"co", tw:true, desc:"【本業】太極 LED 磊晶;【轉型】與廣運合力控股盛新材料(SiC);【題材】化合物半導體 + SiC 雙重受惠。", timing:"2026H2"},
+  {id:"sungshin", name:"盛新材料", stock:"6930", type:"co", tw:true, desc:"【本業】盛新材料全台唯一 8 吋商用 SiC 基板;【題材】廣運+太極大聯盟控股核心,化合物半導體量產關鍵。", timing:"2026H2"},
+  // 21 高速銅線
+  {id:"chiefcon", name:"佳必琪", stock:"6197", type:"co", tw:true, desc:"【本業】佳必琪連接器+高速纜線;【轉型】224Gbps Overpass Cable + ORV3 大電流線束;【題材】法說級訂單,AI 機櫃內部互連必備,但光通訊 CPO 取代為長線風險。", warn:"光通訊 CPO 若延伸取代機櫃內部短距,高速銅纜成長空間受限。", timing:"2026Q1+"},
+  {id:"foxlink_z", name:"正崴", stock:"2392", type:"co", tw:true, desc:"【本業】正崴連接器+高速線束;【轉型】ORV3 配電+大電流;【題材】narrative 題材 21+30 雙重受惠,連接器競爭激烈。", warn:"連接器競爭激烈;ORV3 認證進度需追蹤。", timing:"2026Q1+"},
+  // 23 超高壓
+  {id:"hsin_hsin", name:"華新", stock:"1605", type:"co", tw:true, desc:"【本業】華新超高壓電纜 + 銅材龍頭;【轉型】特高壓電纜 + 變壓器外溢;【題材】上游原料掌控力強,強韌電網受惠。", timing:"2026Q1+"},
+  // 24 電子紙(新分類)
+  {id:"EINK", name:"電子紙", type:"tech", desc:"narrative 題材 24:全球 ESG 碳稅+零售缺工,推動超低功耗彩色電子紙;台廠掌握材料霸權。"},
+  {id:"eink_paper", name:"電子紙材料/模組", type:"subtech", desc:"電子紙薄膜+模組;元太材料霸權。"},
+  {id:"prime_view", name:"元太", stock:"8069", type:"co", tw:true, desc:"【本業】元太全球電子紙材料龍頭(掌握 e-paper 薄膜霸權);【轉型】BMW iX3 車身電子紙量產 + 大尺寸看板;【題材】法說級訂單,narrative 題材 7+24 雙重受惠,但低功耗 LCD 突破為長線風險。", warn:"電子紙材料雖有霸權,但毛利率長線受零售商議價力影響;若低功耗 LCD 技術突破成本可能被取代。", timing:"2026Q1+"},
+  {id:"sitronix", name:"晶宏", stock:"3141", type:"co", tw:true, desc:"【本業】晶宏電子紙驅動 IC(元太關係廠);【轉型】ESL 電子貨架標籤直接受益;【題材】法說級訂單,但客戶集中度高。", warn:"高度依賴元太電子紙生態系,客戶集中度為觀察點。", timing:"2026Q1+"},
+  {id:"chenyao", name:"振曜", stock:"6143", type:"co", tw:true, desc:"【本業】振曜電子紙下游模組;【轉型】ESL 直接受益;【題材】下游模組毛利受 ESL 終端通路廠擠壓。", warn:"下游模組毛利受 ESL 終端通路廠擠壓。", timing:"2026Q1+"},
+  {id:"fitipower", name:"天鈺", stock:"4961", type:"co", tw:true, desc:"【本業】天鈺顯示驅動 IC;【轉型】電子紙系統整合;【題材】間接受益,與晶宏/奇景搶單。", warn:"驅動 IC 競爭激烈,需與晶宏、奇景搶單。", timing:"2026H2"},
+  {id:"auo", name:"友達", stock:"2409", type:"co", tw:true, desc:"【本業】友達光電面板大廠;【轉型】跨界電子紙大尺寸廣告看板 + MicroLED 光互連玻璃 RDL 中介層;【題材】narrative 題材 24+28 雙重受益,但面板本業景氣承壓。", warn:"面板本業景氣承壓,電子紙與 MicroLED 是轉型賭注;短期實質貢獻仍有限。", timing:"2026H2"},
+  // 26 AI 眼鏡
+  {id:"htc", name:"宏達電", stock:"2498", type:"co", tw:true, desc:"【本業】宏達電消費電子品牌(VR/AR);【轉型】AI/AR 眼鏡 + VIVERSE 整機生態系;【題材】narrative 題材 26 直接受益,終端市場仍小品牌獲利能力待驗證。", warn:"AR/VR 終端市場仍小,品牌獲利能力待驗證。", timing:"2026H2"},
+  {id:"calin", name:"英濟", stock:"3294", type:"co", tw:true, desc:"【本業】英濟精密金屬機構件;【轉型】AI 眼鏡精密金屬機構件;【題材】narrative 題材 26 直接受益,量產時程不明確。", warn:"AI 眼鏡量產時程不明確,精密機構件貢獻待放量。", timing:"2026H2"},
+  {id:"playnitride", name:"錼創科技-KY", stock:"6854", type:"co", tw:true, desc:"【本業】錼創科技-KY Micro LED 巨量轉移技術龍頭;【轉型】光互連 CPO 新主流玩家;【題材】法說級訂單,narrative 題材 26+28 雙重受惠,但巨量轉移良率仍是長期挑戰。", warn:"Micro LED 巨量轉移良率仍是長期挑戰;商業化時程多次遞延。", timing:"2026H2"},
+  {id:"ledoptronics", name:"鼎元", stock:"2426", type:"co", tw:true, desc:"【本業】鼎元光感測器 + 雷射二極體;【轉型】Micro LED 光互連接收端;【題材】規模小,Micro LED 量產時程影響業績。", warn:"光感測器規模小,Micro LED 量產時程影響業績。", timing:"2026H2"},
+  // 29 特高壓電纜(新分類)
+  {id:"CABLE_HV", name:"特高壓電纜", type:"tech", desc:"narrative 題材 29:強韌電網 2028 完工,345kV/161kV 合格大廠瓜分數千億標案。全台僅 5 家合格。"},
+  {id:"cable_uv", name:"345kV 超高壓電纜", type:"subtech", desc:"超高壓電纜核心技術壁壘高。"},
+  {id:"datung_c", name:"大東電", stock:"1623", type:"co", tw:true, desc:"【本業】大東電特高壓電纜合格大廠;【轉型】345kV 標案直接受益;【題材】法說級訂單,在手訂單超百億,但銅價波動+台電撥款影響毛利。", warn:"標案執行進度與台電撥款節奏為關鍵風險;國際銅價波動影響毛利。", timing:"2026Q1+"},
+  {id:"hechi", name:"合機", stock:"1618", type:"co", tw:true, desc:"【本業】合機特高壓電纜合格大廠;【轉型】345kV 標案;【題材】法說級訂單,但執行能力為觀察點。", warn:"標案得標後執行能力為觀察點;產能擴張速度有限。", timing:"2026Q1+"},
+  // 30 大電力線束
+  {id:"weiheng", name:"維熹", stock:"3501", type:"co", tw:true, desc:"【本業】維熹大電力線束+Power Whip;【轉型】ORV3 機櫃配電核心;【題材】法說級訂單,但紅鏈立訊認證後殺價風險。", warn:"ORV3 配電認證需通過美系 CSP;紅鏈如立訊若通過認證可能引發殺價。", timing:"2026Q1+"},
+  // 32 量子(千附精密)
+  {id:"chianpu_q", name:"千附精密", stock:"6829", type:"co", tw:true, desc:"【本業】千附精密半導體真空腔體零組件(注意:6829 與 8383 千附不同公司);【轉型】量子運算設備直接卡位;【題材】narrative 題材 32 直接受益,量子商用化時程多次遞延。", warn:"千附精密量子腔體規模小;量子運算商用化時程多次遞延。", timing:"2027"},
+  // 33 鎢斷供(新分類)
+  {id:"TUNGSTEN", name:"鎢斷供 / 戰略物資", type:"tech", desc:"narrative 題材 33:中美貿易戰+主要產國管制,鎢原料供給中斷,台廠回收+下游刀具與半導體靶材受益。"},
+  {id:"tungsten_recyc", name:"鎢回收/靶材", type:"subtech", desc:"全台獨立鎢金屬循環冶煉+半導體靶材。"},
+  {id:"lianyou", name:"聯友金屬", stock:"7610", type:"co", tw:true, desc:"【本業】聯友金屬全台唯一鎢金屬循環冶煉廠;【題材】法說級訂單,斷供潮最直接受益,但若中國解除出口管制題材消退。", warn:"鎢價波動是核心風險;若中國解除出口管制,題材消退。", timing:"2026Q1+"},
+  {id:"solartech", name:"光洋科", stock:"1785", type:"co", tw:true, desc:"【本業】光洋科貴金屬循環+半導體靶材龍頭;【轉型】高純度鎢靶材;【題材】法說級訂單,晶圓廠鎢製程回收剛需,但鎢靶材佔總營收仍小。", warn:"鎢靶材是利基,佔總營收仍小;貴金屬循環本業毛利波動大。", timing:"2026Q1+"},
+  // 34 太空太陽能(掛在衛星之下)
+  {id:"sas_silicon", name:"中美晶", stock:"5483", type:"co", tw:true, desc:"【本業】中美晶矽晶圓+太陽能(注意:題材 20 SiC 明確排除中美晶);【轉型】宜蘭廠太空用 PERC 電池達第七級規範,出貨美國兩家大客戶;【題材】法說級訂單,太空太陽能直接受益。", warn:"中美晶宜蘭廠太空 PERC 雖達第七級規範,但客戶集中度極端;商用化規模仍小。", timing:"2026H2"},
+  // 35 石英(新分類)
+  {id:"QUARTZ", name:"石英元件", type:"tech", desc:"narrative 題材 35:AI 伺服器高速傳輸+WiFi 7 強制換代,催生超高頻、超低抖動 XO/TCXO 剛需。"},
+  {id:"quartz_xo", name:"石英振盪器", type:"subtech", desc:"高階差動式 XO + 溫補 TCXO + OCXO。"},
+  {id:"txc", name:"晶技", stock:"3042", type:"co", tw:true, desc:"【本業】晶技全球石英元件龍頭(XO/TCXO/OCXO);【轉型】率先打入輝達 Rubin 高階差動式 XO 供應鏈;【題材】法說級訂單,但日系 Epson/NDK 殺價戰為主要風險。", warn:"日系 Epson/NDK 若因日圓劇貶發動殺價戰,毛利率將受擠壓;高階 XO 仍處驗證期。", timing:"2026Q1+"},
+  {id:"taitien", name:"泰藝", stock:"8289", type:"co", tw:true, desc:"【本業】泰藝高階網通基建 + 超高精度 TCXO/OCXO 振盪器;【題材】法說級訂單,伺服器與基建純度高,但客戶集中度需追蹤。", warn:"TCXO/OCXO 高階產品依賴美系基地台與 AI 伺服器拉貨,客戶集中度需追蹤。", timing:"2026Q1+"},
+  {id:"taiwan_xtal", name:"台嘉碩", stock:"3221", type:"co", tw:true, desc:"【本業】台嘉碩石英晶體 + SAW 表面聲波濾波器雙核心;【題材】AI + 5G 網通模組整合受益,但日系村田/太陽誘電競爭。", warn:"SAW 濾波器面臨日系村田/太陽誘電競爭,5G 高階模組訂單分散度高。", timing:"2026Q1+"},
+  {id:"siward", name:"希華", stock:"2484", type:"co", tw:true, desc:"【本業】希華石英元件;【轉型】車用+超小型化高頻石英元件;【題材】WiFi 7 換代紅利,但車用景氣低迷+認證冗長。", warn:"車用電子景氣低迷,且車用石英元件規格認證冗長。", timing:"2026H2"},
+  {id:"jagh", name:"加高", stock:"8182", type:"co", tw:true, desc:"【本業】加高石英元件(日本大真空 KDS 轉投資);【題材】日系車用石英元件去中化轉單,但獨立性受限。", warn:"日本母廠 KDS 持股+轉投資結構,獨立性受限。", timing:"2026H2"},
+  // 機器人/邊緣 AI 補完
+  {id:"michi", name:"盟立", stock:"2464", type:"co", tw:true, desc:"【本業】盟立自動化系統整合 + 機器人;【題材】narrative 題材 3 直接受益。", timing:"2026H2"},
+  {id:"adlink_h", name:"樺漢", stock:"6414", type:"co", tw:true, desc:"【本業】樺漢工業電腦+邊緣 AI 平台;【題材】機器人離線運算核心。", timing:"2026H2"},
+  {id:"genius_o_robot", name:"亞光", stock:"3019", type:"co", tw:true, desc:"【本業】亞光光學鏡頭+精密光學;【轉型】機器人視覺感測;【題材】narrative 題材 3+26 雙重受惠。", timing:"2026Q1+"},
+  {id:"binstar", name:"彬台", stock:"3379", type:"co", tw:true, desc:"【本業】彬台機器人/工業自動化;【題材】間接受益。", timing:"2026H2"},
+  // 功率元件補完
+  {id:"taisemi", name:"台半", stock:"5425", type:"co", tw:true, desc:"【本業】台半功率半導體;【題材】功率元件轉單漲價直接受益。", timing:"2026H2"},
+  {id:"sinopulse", name:"廣閎科", stock:"6693", type:"co", tw:true, desc:"【本業】廣閎科功率元件;【題材】IDM 大廠缺貨轉單受益。", timing:"2026H2"},
+  {id:"chieflin", name:"界霖", stock:"5285", type:"co", tw:true, desc:"【本業】界霖功率元件封裝;【題材】功率元件外溢間接受益。", timing:"2026H2"},
+  // 31 成熟製程
+  {id:"umc", name:"聯電", stock:"2303", type:"co", tw:true, desc:"【本業】聯電晶圓代工二哥;【轉型】成熟製程漲價 + CSP PMIC 訂單放量;【題材】法說明確,但中國中芯/華虹擴產壓力大。", warn:"成熟製程競爭激烈,中國中芯/華虹大幅擴產壓力大;漲價持續性需觀察。", timing:"2026Q1+"},
+  // 22 高階被動補完
+  {id:"taiwan_tc_p", name:"臺慶科", stock:"6684", type:"co", tw:true, desc:"【本業】臺慶科電感(被動元件);【轉型】AI 晶片電感升級;【題材】法說明確高階被動規格升級。", timing:"2026Q1+"},
+  {id:"njiuhao", name:"九豪", stock:"6127", type:"co", tw:true, desc:"【本業】九豪陶瓷被動元件;【題材】被動元件漲價外溢間接受益。", timing:"2026H2"},
+  // 17 液冷補完
+  {id:"inwin_c", name:"迎廣", stock:"6117", type:"co", tw:true, desc:"【本業】AI 伺服器機殼+液冷機殼;【題材】GB300 機殼供應鏈受惠。", timing:"2026H2"},
+  // 27 AMD 補完(營邦已有,股號為 3693 而非 6122)
+  // 5 DDR4 補完
+  {id:"powerflash", name:"福懋科", stock:"8131", type:"co", tw:true, desc:"【本業】福懋科 DDR4 利基記憶體後段封裝;【題材】DDR4 利基需求循環大。", timing:"2026H2"},
+  {id:"huatung", name:"華東", stock:"8110", type:"co", tw:true, desc:"【本業】華東記憶體模組;【題材】DDR4 利基間接受益。", timing:"2026H2"},
+  {id:"chipmos", name:"南茂", stock:"8150", type:"co", tw:true, desc:"【本業】南茂記憶體封測,DDR4 利基間接受益;【題材】客戶分散度高。", timing:"2026H2", warn:"封測二三線,客戶分散度高;DDR4 利基需求循環大。"},
+
+  // ========== Stage 2:最後一批(narrative+自查補完) ==========
+  {id:"chipbond", name:"頎邦", stock:"6147", type:"co", tw:true, desc:"【本業】頎邦覆晶封裝+TDDI 顯示驅動 IC 後段;【轉型】CSP ASIC 後段封測切入;【題材】法說級 AI 後段訂單,但 TDDI 後段受手機景氣循環影響大。", timing:"2026Q1+", warn:"TDDI 後段封測受手機景氣循環影響大;CSP ASIC 訂單能見度受砍價壓力。"},
+  {id:"chipmaxinpc", name:"廣積", stock:"8050", type:"co", tw:true, desc:"【本業】廣積工業電腦 + 邊緣 AI 平台;【題材】軍規 + 智慧工廠受惠,但研華/凌華擠壓。", timing:"2026H2", warn:"工業電腦競爭激烈;研華/凌華擠壓。"},
+  {id:"unitech_3217", name:"優群", stock:"3217", type:"co", tw:true, desc:"【本業】優群連接器/線材中型廠;【題材】AI 機櫃配電鏈外溢受益,規模小。", timing:"2026H2", warn:"連接器中型廠規模小;高速線競爭加劇。"},
+  {id:"jamco_3691", name:"碩天", stock:"3691", type:"co", tw:true, desc:"【本業】碩天 UPS + 工業電源中型廠;【轉型】800V HVDC 配電鏈;【題材】伺服器電源升級規格受益,但與台達/光寶搶單。", timing:"2026H2", warn:"UPS 競爭激烈;與台達/光寶搶單。"},
+  {id:"glory_8038", name:"長園科", stock:"8038", type:"co", tw:true, desc:"【本業】長園科化合物半導體相關產業鏈;【轉型】SiC/GaN 替代材料新興;【題材】規模小,客戶導入速度緩慢。", timing:"2027", warn:"化合物半導體新興公司,規模小;客戶導入速度緩慢。"},
+  {id:"sino_5511", name:"德昌營造", stock:"5511", type:"co", tw:true, desc:"【本業】德昌營造廠房工程;【題材】半導體/封測廠擴產直接受惠,但工程毛利率受成本影響。", timing:"2026Q1+", warn:"建廠工程毛利率受成本+台電電力配套影響;短期業績波動大。"},
+  {id:"emperor_8084", name:"巨虹電子", stock:"8084", type:"co", tw:true, desc:"【本業】巨虹電子機殼 + 邊緣裝置整合;【題材】AI 邊緣鏈間接受益,規模小訂單分散度高。", timing:"2026H2", warn:"機殼中型廠,規模小;訂單分散度高。"},
+  {id:"yueh_feng_8121", name:"越峰", stock:"8121", type:"co", tw:true, desc:"【本業】越峰軟磁 + EMI 屏蔽材料;【轉型】AI 高頻電路抗干擾剛需;【題材】EMI 規格升級受益。", timing:"2026Q1+", warn:"軟磁材料規模小;客戶集中度高。"},
+  {id:"epage_6531", name:"愛普*", stock:"6531", type:"co", tw:true, desc:"【本業】愛普* 記憶體 IP/EDA 設計服務;【轉型】DRAM 客製化卡位 + AI ASIC 設計外溢;【題材】美系大廠 Synopsys/Cadence 競爭。", timing:"2026H2", warn:"記憶體 IP/EDA 規模小;美系大廠 Synopsys/Cadence 競爭。"},
+  {id:"jeanqi_2369", name:"菱生精密", stock:"2369", type:"co", tw:true, desc:"【本業】菱生封測中型廠(功率元件+CIS);【題材】AI 功率元件外溢受益,規模小。", timing:"2026H2", warn:"封測規模小,日月光/京元電擠壓;客戶分散度高。"},
+
+
+
+
+  // 聯光通(光通訊)
+
+
+];
+const LINKS = [
+  // ROOT → 兩大分類
+  {s:"ROOT",t:"INSPECT",type:"sub"},{s:"ROOT",t:"ADVPKG",type:"sub"},
+
+  // 檢測/測試 → 六大粗技術
+  {s:"INSPECT",t:"AOI",type:"sub"},{s:"INSPECT",t:"AXI",type:"sub"},{s:"INSPECT",t:"SPI",type:"sub"},
+  {s:"INSPECT",t:"ICT",type:"sub"},{s:"INSPECT",t:"SEMI_TEST",type:"sub"},{s:"INSPECT",t:"TEST_IF",type:"sub"},
+
+  // 先進封裝 → 環節
+  {s:"ADVPKG",t:"pkg_foundry",type:"sub"},{s:"ADVPKG",t:"pkg_osat",type:"sub"},{s:"ADVPKG",t:"pkg_abf",type:"sub"},{s:"ADVPKG",t:"pkg_equip",type:"sub"},{s:"ADVPKG",t:"pkg_glass",type:"sub"},
+
+  // 玻璃基板第三層連線
+  {s:"pkg_glass",t:"gcs_material",type:"sub"},{s:"pkg_glass",t:"gcs_tgv",type:"sub"},{s:"pkg_glass",t:"gcs_process",type:"sub"},{s:"pkg_glass",t:"gcs_inspect",type:"sub"},{s:"pkg_glass",t:"gcs_assembly",type:"sub"},
+
+  // 玻璃基板公司 → 標的
+  // 玻璃母材
+  {s:"taiwan_glass",t:"gcs_material",type:"make"},{s:"genda",t:"gcs_material",type:"make"},{s:"yueh_chen",t:"gcs_material",type:"make"},{s:"zhongyou",t:"gcs_material",type:"make"},
+  // TGV 雷射鑽孔/蝕刻
+  {s:"thinkpower",t:"gcs_tgv",type:"make",grade:"fa"},{s:"laserk",t:"gcs_tgv",type:"make"},{s:"jincheng",t:"gcs_tgv",type:"make"},{s:"genda",t:"gcs_tgv",type:"make"},
+  // TGV 鍍膜/烘烤/壓膜
+  {s:"chuni",t:"gcs_process",type:"make",grade:"fa"},{s:"youwei",t:"gcs_process",type:"make"},{s:"chihsheng",t:"gcs_process",type:"make"},
+  // 玻璃基板檢測
+  {s:"weihua",t:"gcs_inspect",type:"make"},{s:"eastsoft",t:"gcs_inspect",type:"make"},
+  // 組裝/認證
+  {s:"tpk",t:"gcs_assembly",type:"make"},{s:"innolux",t:"gcs_assembly",type:"make"},{s:"hannstar",t:"gcs_assembly",type:"make"},
+  // 創新服務跨界(原本在測試介面,也做 TGV 中介層)
+  {s:"ctech",t:"gcs_assembly",type:"make"},
+
+  // 受惠線:玻璃基板/CoPoS 商轉 → 設備龍頭最先受惠
+  {s:"pkg_glass",t:"thinkpower",type:"benefit"},{s:"pkg_glass",t:"chuni",type:"benefit"},{s:"pkg_glass",t:"genda",type:"benefit"},{s:"pkg_glass",t:"tpk",type:"benefit"},
+  // 先進封裝環節 → 公司
+  {s:"pkg_tsmc",t:"pkg_foundry",type:"make"},
+  {s:"pkg_ase",t:"pkg_osat",type:"make"},{s:"kyec",t:"pkg_osat",type:"make"},{s:"powertech",t:"pkg_osat",type:"make"},
+  {s:"unimicron",t:"pkg_abf",type:"make"},{s:"nanya_pcb",t:"pkg_abf",type:"make"},{s:"kinsus",t:"pkg_abf",type:"make"},
+  {s:"gallant",t:"pkg_equip",type:"make"},{s:"sunfter",t:"pkg_equip",type:"make"},{s:"galaxy",t:"pkg_equip",type:"make"},
+
+  // ★需求線:先進封裝爆發 → 拉動檢測/測試需求(跨大分類的供需)
+  {s:"ADVPKG",t:"INSPECT",type:"coop"},
+
+  // AOI → 細分
+  {s:"AOI",t:"pcb_aoi",type:"sub"},{s:"AOI",t:"semi_aoi",type:"sub"},{s:"AOI",t:"adv_pkg_aoi",type:"sub"},
+  {s:"AOI",t:"panel_aoi",type:"sub"},{s:"AOI",t:"aoi_3d_spi",type:"sub"},{s:"AOI",t:"cpo_aoi",type:"sub"},
+
+  // 新粗技術 → 細分
+  {s:"AXI",t:"axi_bga",type:"sub"},{s:"AXI",t:"axi_3dct",type:"sub"},
+  {s:"SPI",t:"spi_3d",type:"sub"},
+  {s:"ICT",t:"ict_flying",type:"sub"},{s:"ICT",t:"ict_bt",type:"sub"},
+  {s:"SEMI_TEST",t:"st_tester",type:"sub"},{s:"SEMI_TEST",t:"st_handler",type:"sub"},
+  {s:"TEST_IF",t:"if_probecard",type:"sub"},{s:"TEST_IF",t:"if_loadboard",type:"sub"},
+
+  // 新細分 → 公司(供應/做)
+  {s:"test_research",t:"axi_bga",type:"make"},{s:"test_research",t:"axi_3dct",type:"make"},{s:"chroma",t:"axi_bga",type:"make"},
+  {s:"test_research",t:"spi_3d",type:"make"},{s:"chroma",t:"spi_3d",type:"make"},
+  {s:"test_research",t:"ict_flying",type:"make"},{s:"test_research",t:"ict_bt",type:"make"},{s:"chroma",t:"ict_flying",type:"make"},
+  {s:"hongjing",t:"st_handler",type:"make"},{s:"chroma",t:"st_tester",type:"make"},{s:"chroma",t:"st_handler",type:"make"},{s:"advantest",t:"st_tester",type:"make"},
+  {s:"wintest",t:"if_probecard",type:"make"},{s:"mpi",t:"if_probecard",type:"make"},{s:"chpt",t:"if_probecard",type:"make"},{s:"hermes_test",t:"if_probecard",type:"make"},{s:"leeno",t:"if_probecard",type:"make"},{s:"ctech",t:"if_probecard",type:"make"},
+  {s:"chpt",t:"if_loadboard",type:"make"},{s:"yljt",t:"if_loadboard",type:"make"},
+
+  // 受惠:測試介面受 AI 晶片測試需求帶動
+  {s:"SEMI_TEST",t:"hongjing",type:"benefit"},
+  {s:"TEST_IF",t:"wintest",type:"benefit"},{s:"TEST_IF",t:"mpi",type:"benefit"},{s:"TEST_IF",t:"chpt",type:"benefit"},
+
+  // 細分 → 第三層檢測標的
+  {s:"adv_pkg_aoi",t:"t_bump",type:"sub"},{s:"adv_pkg_aoi",t:"t_rdl",type:"sub"},{s:"adv_pkg_aoi",t:"t_warpage",type:"sub"},{s:"adv_pkg_aoi",t:"t_interposer",type:"sub"},
+  {s:"semi_aoi",t:"t_waferdefect",type:"sub"},{s:"semi_aoi",t:"t_cd_overlay",type:"sub"},{s:"semi_aoi",t:"t_failure",type:"sub"},
+  {s:"pcb_aoi",t:"t_pcb_trace",type:"sub"},{s:"pcb_aoi",t:"t_substrate",type:"sub"},
+  {s:"panel_aoi",t:"t_panel_defect",type:"sub"},
+  {s:"aoi_3d_spi",t:"t_spi",type:"sub"},{s:"aoi_3d_spi",t:"t_warpage",type:"sub"},
+  {s:"cpo_aoi",t:"t_cpo_couple",type:"sub"},
+
+  // 第三層 → 公司(供應/做)
+  // 微凸塊 Bump
+  {s:"machvision",t:"t_bump",type:"make"},{s:"berylinno",t:"t_bump",type:"make"},{s:"taliang",t:"t_bump",type:"make"},{s:"genmega",t:"t_bump",type:"make"},{s:"camtek",t:"t_bump",type:"make"},
+  // RDL
+  {s:"utechzone",t:"t_rdl",type:"make"},{s:"berylinno",t:"t_rdl",type:"make"},{s:"taliang",t:"t_rdl",type:"make"},
+  // 翹曲 Warpage
+  {s:"genmega",t:"t_warpage",type:"make"},{s:"gpm",t:"t_warpage",type:"make"},{s:"crystalwise",t:"pw_passive",type:"make"},
+  // 中介層/Die 貼合
+  {s:"gpm",t:"t_interposer",type:"make"},{s:"utechzone",t:"t_interposer",type:"make"},
+  // 晶圓表面缺陷
+  {s:"machvision",t:"t_waferdefect",type:"make"},{s:"gpm",t:"t_waferdefect",type:"make"},{s:"allring",t:"t_waferdefect",type:"make"},{s:"all_ring2",t:"t_waferdefect",type:"make"},{s:"kla",t:"t_waferdefect",type:"make"},{s:"onto",t:"t_waferdefect",type:"make"},
+  // 線寬/疊對
+  {s:"kla",t:"t_cd_overlay",type:"make"},{s:"crystalwise",t:"pw_passive",type:"make"},{s:"hermes_test",t:"t_cd_overlay",type:"make"},
+  // 故障/材料分析
+  {s:"materials_a",t:"t_failure",type:"make"},{s:"itc",t:"t_failure",type:"make"},{s:"mastec",t:"t_failure",type:"make"},
+  // PCB 線路
+  {s:"machvision",t:"t_pcb_trace",type:"make"},{s:"test_research",t:"t_pcb_trace",type:"make"},{s:"utechzone",t:"t_pcb_trace",type:"make"},{s:"lhwingtech",t:"t_pcb_trace",type:"make"},{s:"kla",t:"t_pcb_trace",type:"make"},
+  // ABF 載板
+  {s:"lhwingtech",t:"t_substrate",type:"make"},{s:"utechzone",t:"t_substrate",type:"make"},
+  // 面板光學
+  {s:"utechzone",t:"t_panel_defect",type:"make"},{s:"genmega",t:"t_panel_defect",type:"make"},
+  // 錫膏/AXI
+  {s:"test_research",t:"t_spi",type:"make"},{s:"chroma",t:"t_spi",type:"make"},
+  // CPO 對位/耦合
+  {s:"utechzone",t:"t_cpo_couple",type:"make"},{s:"chroma",t:"t_cpo_couple",type:"make"},
+
+  // 受惠(技術需求爆發 → 公司因此受惠)benefit
+  {s:"adv_pkg_aoi",t:"machvision",type:"benefit"},{s:"adv_pkg_aoi",t:"berylinno",type:"benefit"},{s:"adv_pkg_aoi",t:"taliang",type:"benefit"},{s:"adv_pkg_aoi",t:"genmega",type:"benefit"},
+  {s:"cpo_aoi",t:"materials_a",type:"benefit"},{s:"cpo_aoi",t:"itc",type:"benefit"},
+
+  // 合作 / 供需(公司↔公司)coop —— firm:true 表示有明確訂單/公告憑據
+  {s:"ase",t:"machvision",type:"coop",firm:true},   // 日月光向牧德採購 AOI/AVI 約3.71億+參股(董事會公告)
+  {s:"tsmc",t:"utechzone",type:"coop"},      // 台積電 AP6/7/8 釋出 AOI 訂單,點名由田
+  {s:"tsmc",t:"taliang",type:"coop"},        // 台積電釋單點名大量
+  {s:"tsmc",t:"test_research",type:"coop"},  // 台積電釋單點名德律
+  {s:"tsmc",t:"gpm",type:"coop"},            // 台積電釋單點名均豪
+  {s:"tsmc",t:"machvision",type:"coop"},     // 台積電釋單點名牧德
+  {s:"tsmc",t:"berylinno",type:"coop"},      // 台積電認證/點名倍利科
+  {s:"tsmc",t:"crystalwise",type:"coop"},    // 台積電釋單點名晶彩科
+  {s:"ase",t:"utechzone",type:"coop"},       // 日月光為由田客戶
+  {s:"ase",t:"gpm",type:"coop"},             // 日月光為均豪客戶
+  {s:"tsmc",t:"mpi",type:"coop"},            // 旺矽貼近台積電24hr客製服務
+  {s:"ase",t:"mpi",type:"coop"},             // 旺矽貼近日月光
+  {s:"tsmc",t:"chpt",type:"coop"},            // 精測測試載板供台積電鏈
+
+  // ===== 新分類:ROOT → 大分類 =====
+  {s:"ROOT",t:"CHIP",type:"sub"},{s:"ROOT",t:"MEM",type:"sub"},{s:"ROOT",t:"SERVER",type:"sub"},
+  {s:"ROOT",t:"THERMAL",type:"sub"},{s:"ROOT",t:"POWER",type:"sub"},{s:"ROOT",t:"CONN",type:"sub"},
+  {s:"ROOT",t:"PCBCCL",type:"sub"},{s:"ROOT",t:"NET",type:"sub"},{s:"ROOT",t:"GRID",type:"sub"},{s:"ROOT",t:"MATERIAL",type:"sub"},{s:"ROOT",t:"ROBOT",type:"sub"},{s:"ROOT",t:"SAT",type:"sub"},{s:"ROOT",t:"QUANTUM",type:"sub"},
+
+  // 大分類 → 環節
+  {s:"CHIP",t:"chip_asic",type:"sub"},{s:"CHIP",t:"chip_gpu",type:"sub"},
+  {s:"MEM",t:"mem_dram",type:"sub"},{s:"MEM",t:"mem_hbm",type:"sub"},
+  {s:"SERVER",t:"srv_odm",type:"sub"},
+  {s:"THERMAL",t:"th_liquid",type:"sub"},{s:"THERMAL",t:"th_air",type:"sub"},
+  {s:"POWER",t:"pw_module",type:"sub"},
+  {s:"CONN",t:"cn_socket",type:"sub"},
+  {s:"PCBCCL",t:"pcb_hdi",type:"sub"},
+  {s:"NET",t:"net_switch",type:"sub"},{s:"NET",t:"net_cpo",type:"sub"},
+  {s:"GRID",t:"grid_trans",type:"sub"},
+
+  // 環節 → 公司(供應/做)
+  {s:"alchip",t:"chip_asic",type:"make"},{s:"gusc",t:"chip_asic",type:"make"},{s:"faraday",t:"chip_asic",type:"make"},{s:"mtk",t:"chip_asic",type:"make"},
+  {s:"nvidia",t:"chip_gpu",type:"make"},{s:"broadcom",t:"chip_gpu",type:"make"},{s:"amd",t:"chip_gpu",type:"make"},
+  {s:"nanya",t:"mem_dram",type:"make"},{s:"winbond",t:"mem_dram",type:"make"},{s:"adata",t:"mem_dram",type:"make"},
+  {s:"skhynix",t:"mem_hbm",type:"make"},{s:"micron",t:"mem_hbm",type:"make"},
+  {s:"foxconn",t:"srv_odm",type:"make"},{s:"quanta",t:"srv_odm",type:"make"},{s:"wistron",t:"srv_odm",type:"make"},{s:"wiwynn",t:"srv_odm",type:"make"},{s:"inventec",t:"srv_odm",type:"make"},{s:"gigabyte",t:"srv_odm",type:"make"},
+  {s:"auras",t:"th_air",type:"make"},{s:"jentech",t:"th_air",type:"make"},{s:"taisol",t:"th_air",type:"make"},
+  // 散熱第三層:液冷 → 標的
+  {s:"th_liquid",t:"th_coldplate",type:"sub"},{s:"th_liquid",t:"th_cdu",type:"sub"},{s:"th_liquid",t:"th_qd",type:"sub"},{s:"th_liquid",t:"th_immersion",type:"sub"},
+  {s:"th_air",t:"th_ihs",type:"sub"},
+  // 標的 → 公司
+  {s:"auras",t:"th_coldplate",type:"make",grade:"fa"},{s:"shuanghong",t:"th_coldplate",type:"make",grade:"fa"},{s:"maico",t:"th_coldplate",type:"make"},{s:"gaoli",t:"th_coldplate",type:"make"},
+  {s:"auras",t:"th_cdu",type:"make"},{s:"shuanghong",t:"th_cdu",type:"make"},{s:"kenmec",t:"th_cdu",type:"make"},{s:"gaoli",t:"th_cdu",type:"make"},
+  {s:"fositek",t:"th_qd",type:"make"},{s:"auras",t:"th_qd",type:"make"},
+  {s:"jentech",t:"th_ihs",type:"make"},{s:"auras",t:"th_ihs",type:"make"},
+  {s:"smei",t:"th_immersion",type:"make"},
+  {s:"delta",t:"pw_module",type:"make"},{s:"liteon",t:"pw_module",type:"make"},{s:"acbel",t:"pw_module",type:"make"},
+  {s:"lotes",t:"cn_socket",type:"make"},{s:"kingslide",t:"cn_socket",type:"make"},{s:"chenbro",t:"cn_socket",type:"make"},{s:"bizlink",t:"cn_socket",type:"make"},
+  {s:"gce",t:"pcb_hdi",type:"make"},{s:"trtech",t:"pcb_hdi",type:"make"},{s:"emc",t:"pcb_hdi",type:"make"},{s:"iteq",t:"pcb_hdi",type:"make"},{s:"tuc",t:"pcb_hdi",type:"make"},{s:"jentec",t:"pcb_hdi",type:"make"},
+  {s:"accton",t:"net_switch",type:"make"},{s:"arcadyan",t:"net_switch",type:"make"},
+  // CPO 第三層:光通訊 → 標的
+  {s:"net_cpo",t:"cpo_coupe",type:"sub"},{s:"net_cpo",t:"cpo_engine",type:"sub"},{s:"net_cpo",t:"cpo_fau",type:"sub"},{s:"net_cpo",t:"cpo_laser",type:"sub"},
+  // 標的 → 公司
+  {s:"jpc",t:"cpo_fau",type:"make"},{s:"browave",t:"cpo_fau",type:"make"},{s:"luxshare_op",t:"cpo_fau",type:"make"},
+  {s:"browell",t:"cpo_engine",type:"make"},{s:"sdo",t:"cpo_engine",type:"make"},
+  {s:"luxnet",t:"cpo_laser",type:"make"},
+  {s:"pkg_tsmc",t:"cpo_coupe",type:"make"},
+  // 旺矽切入 CPO 測試(跨到測試介面)
+  {s:"mpi",t:"t_cpo_couple",type:"make"},
+  {s:"fortune",t:"grid_trans",type:"make"},{s:"shihlin",t:"grid_trans",type:"make"},{s:"chong",t:"grid_trans",type:"make"},{s:"ally",t:"grid_trans",type:"make"},
+
+  // ===== 跨分類供需鏈(這張圖的靈魂:需求方→供給方) =====
+  {s:"SERVER",t:"CHIP",type:"coop"},     // 伺服器 需要 AI 晶片
+  {s:"SERVER",t:"THERMAL",type:"coop"},  // 伺服器 需要 散熱
+  {s:"SERVER",t:"POWER",type:"coop"},    // 伺服器 需要 電源
+  {s:"SERVER",t:"CONN",type:"coop"},               // 伺服器 需要 連接器/機構
+  {s:"SERVER",t:"PCBCCL",type:"coop"},             // 伺服器 需要 PCB
+  {s:"SERVER",t:"NET",type:"coop"},                // 伺服器 連接 交換器/CPO
+  {s:"SERVER",t:"GRID",type:"coop"},     // 資料中心 需要 重電/電力
+  {s:"CHIP",t:"ADVPKG",type:"coop"},     // AI 晶片 需要 先進封裝
+  {s:"CHIP",t:"MEM",type:"coop"},         // AI 晶片 需要 HBM
+
+  // ===== 先進封裝第三層:環節 → 標的 =====
+  {s:"pkg_foundry",t:"pkg_cowos_l",type:"sub"},{s:"pkg_foundry",t:"pkg_soic",type:"sub"},{s:"pkg_foundry",t:"pkg_foplp",type:"sub"},
+  {s:"pkg_equip",t:"pkg_wet",type:"sub"},{s:"pkg_equip",t:"pkg_cmp",type:"sub"},{s:"pkg_equip",t:"pkg_uf",type:"sub"},{s:"pkg_equip",t:"pkg_mask",type:"sub"},
+  // 標的 → 公司
+  {s:"pkg_tsmc",t:"pkg_cowos_l",type:"make"},{s:"pkg_tsmc",t:"pkg_soic",type:"make"},
+  {s:"innolux",t:"pkg_foplp",type:"make",grade:"fa"},{s:"powertech",t:"pkg_foplp",type:"make"},{s:"pkg_ase",t:"pkg_foplp",type:"make"},
+  {s:"gallant",t:"pkg_wet",type:"make"},{s:"sunfter",t:"pkg_wet",type:"make"},{s:"fanxuan",t:"pkg_wet",type:"make"},
+  {s:"kinik",t:"pkg_cmp",type:"make",grade:"fa"},
+  {s:"changhsing",t:"pkg_uf",type:"make"},
+  {s:"galaxy",t:"pkg_mask",type:"make"},
+  {s:"chihsheng",t:"pkg_wet",type:"make"},{s:"junhwa",t:"pkg_wet",type:"make"},
+
+  // ===== AI 晶片第三層 =====
+  {s:"chip_asic",t:"chip_turnkey",type:"sub"},{s:"chip_asic",t:"chip_ip",type:"sub"},
+  {s:"alchip",t:"chip_turnkey",type:"make"},{s:"gusc",t:"chip_turnkey",type:"make"},{s:"faraday",t:"chip_turnkey",type:"make"},{s:"mtk",t:"chip_turnkey",type:"make"},
+  {s:"eno",t:"chip_ip",type:"make"},{s:"andes",t:"chip_ip",type:"make"},
+
+  // ===== HBM 第三層 =====
+  {s:"mem_hbm",t:"mem_stack",type:"sub"},{s:"mem_dram",t:"mem_module_t",type:"sub"},
+  {s:"skhynix",t:"mem_stack",type:"make"},{s:"micron",t:"mem_stack",type:"make"},{s:"powertech",t:"mem_stack",type:"make",grade:"fa"},
+  {s:"adata",t:"mem_module_t",type:"make"},{s:"innodisk",t:"mem_module_t",type:"make"},
+
+  // ===== 伺服器第三層 =====
+  {s:"srv_odm",t:"srv_rack",type:"sub"},{s:"srv_odm",t:"srv_csp",type:"sub"},
+  {s:"foxconn",t:"srv_rack",type:"make"},{s:"quanta",t:"srv_rack",type:"make"},{s:"wistron",t:"srv_rack",type:"make"},{s:"inventec",t:"srv_rack",type:"make"},{s:"gigabyte",t:"srv_rack",type:"make"},
+  {s:"wiwynn",t:"srv_csp",type:"make"},{s:"quanta",t:"srv_csp",type:"make"},
+
+  // ===== 電源第三層 =====
+  {s:"pw_module",t:"pw_psu",type:"sub"},{s:"pw_module",t:"pw_hvdc",type:"sub"},{s:"pw_module",t:"pw_passive",type:"sub"},
+  // 被動元件第三層連線
+  {s:"pw_module",t:"pw_mlcc_hv",type:"sub"},{s:"pw_module",t:"pw_mlcc_hc",type:"sub"},{s:"pw_module",t:"pw_mlcc_npo",type:"sub"},
+  {s:"pw_module",t:"pw_spcap",type:"sub"},{s:"pw_module",t:"pw_tantalum",type:"sub"},{s:"pw_module",t:"pw_alum",type:"sub"},
+  {s:"pw_module",t:"pw_chipres",type:"sub"},{s:"pw_module",t:"pw_indmag",type:"sub"},
+  // 被動元件公司 → 標的
+  {s:"hosiden",t:"pw_mlcc_hv",type:"make"},{s:"sinanen",t:"pw_mlcc_hv",type:"make"},{s:"yageo",t:"pw_mlcc_hv",type:"make"},
+  {s:"yageo",t:"pw_mlcc_hc",type:"make"},{s:"walsin",t:"pw_mlcc_hc",type:"make"},{s:"nidec",t:"pw_mlcc_hc",type:"make"},
+  {s:"hosiden",t:"pw_mlcc_npo",type:"make"},{s:"sinanen",t:"pw_mlcc_npo",type:"make"},
+  {s:"yageo",t:"pw_spcap",type:"make"},{s:"apaq",t:"pw_spcap",type:"make"},
+  {s:"yageo",t:"pw_tantalum",type:"make"},{s:"apaq",t:"pw_tantalum",type:"make"},
+  {s:"jamicon",t:"pw_alum",type:"make"},{s:"capxon",t:"pw_alum",type:"make"},
+  {s:"yageo",t:"pw_chipres",type:"make"},{s:"walsin",t:"pw_chipres",type:"make"},{s:"taiwong",t:"pw_chipres",type:"make"},{s:"capxon",t:"pw_chipres",type:"make"},
+  {s:"yageo",t:"pw_indmag",type:"make"},{s:"walsin",t:"pw_indmag",type:"make"},{s:"junpao",t:"pw_indmag",type:"make"},
+  // 其他相關被動元件公司
+  {s:"holycoin",t:"pw_mlcc_hc",type:"make"},{s:"jstar",t:"pw_mlcc_hc",type:"make"},{s:"sktech",t:"pw_mlcc_hc",type:"make"},
+  {s:"liduo",t:"pw_alum",type:"make"},
+  {s:"poda",t:"pw_mlcc_hc",type:"make"},
+  // 受惠線:Vera Rubin 平台帶動被動元件
+  {s:"pw_mlcc_hv",t:"hosiden",type:"benefit"},{s:"pw_mlcc_hv",t:"sinanen",type:"benefit"},
+  {s:"pw_alum",t:"jamicon",type:"benefit"},
+  {s:"pw_tantalum",t:"apaq",type:"benefit"},
+
+  // ===== 功率元件 / 保護元件 結構線 =====
+  {s:"pw_module",t:"pw_sic_gan",type:"sub"},{s:"pw_module",t:"pw_mosfet",type:"sub"},{s:"pw_module",t:"pw_diode",type:"sub"},
+  {s:"pw_module",t:"pw_protect_ovp",type:"sub"},{s:"pw_module",t:"pw_protect_esd",type:"sub"},{s:"pw_module",t:"pw_protect_ocp",type:"sub"},
+  {s:"pw_module",t:"pw_supercap",type:"sub"},{s:"pw_module",t:"pw_inductor_tlvr",type:"sub"},
+
+  // 功率元件 公司 → 標的
+  {s:"chyangmao",t:"pw_sic_gan",type:"make",grade:"fa"},{s:"taya_chip",t:"pw_sic_gan",type:"make"},{s:"vis_t",t:"pw_sic_gan",type:"make"},{s:"episil",t:"pw_sic_gan",type:"make"},{s:"epistar_s",t:"pw_sic_gan",type:"make"},
+  {s:"chyangmao",t:"pw_mosfet",type:"make"},{s:"fudin",t:"pw_mosfet",type:"make",grade:"fa"},{s:"diodes_tw",t:"pw_mosfet",type:"make"},{s:"taya_chip",t:"pw_mosfet",type:"make"},
+  {s:"diodes_tw",t:"pw_diode",type:"make"},{s:"chyangmao",t:"pw_diode",type:"make"},
+
+  // 保護元件 公司 → 標的
+  {s:"diodes_tw",t:"pw_protect_ovp",type:"make"},{s:"compex",t:"pw_protect_ovp",type:"make"},{s:"thinking",t:"pw_protect_ovp",type:"make"},
+  {s:"diodes_tw",t:"pw_protect_esd",type:"make"},{s:"compex",t:"pw_protect_esd",type:"make"},
+  {s:"thinking",t:"pw_protect_ocp",type:"make"},{s:"polytronics",t:"pw_protect_ocp",type:"make"},{s:"compex",t:"pw_protect_ocp",type:"make"},
+
+  // 超級電容/BBU - 既有被動元件公司也跨界
+  {s:"yageo",t:"pw_supercap",type:"make"},{s:"capxon",t:"pw_supercap",type:"make"},{s:"jamicon",t:"pw_supercap",type:"make"},{s:"nidec",t:"pw_supercap",type:"make"},
+
+  // TLVR 高階電感
+  {s:"sanjet",t:"pw_inductor_tlvr",type:"make"},{s:"tcco",t:"pw_inductor_tlvr",type:"make"},{s:"compex",t:"pw_inductor_tlvr",type:"make"},
+
+  // 微矽/長科:後段測試與導線架受惠
+  {s:"microsil",t:"pw_mosfet",type:"make"},{s:"changke",t:"pw_mosfet",type:"make"},
+
+  // 力智 PMIC 跨到 PSU
+  {s:"green_tw",t:"pw_psu",type:"make"},
+
+  // 受惠線:800V HVDC 與 GB300 拉動功率/保護/超級電容
+  {s:"pw_hvdc",t:"chyangmao",type:"benefit"},{s:"pw_hvdc",t:"fudin",type:"benefit"},{s:"pw_hvdc",t:"diodes_tw",type:"benefit"},{s:"pw_hvdc",t:"taya_chip",type:"benefit"},
+  {s:"pw_supercap",t:"yageo",type:"benefit"},{s:"pw_supercap",t:"jamicon",type:"benefit"},
+  {s:"pw_inductor_tlvr",t:"sanjet",type:"benefit"},{s:"pw_inductor_tlvr",t:"compex",type:"benefit"},
+  {s:"delta",t:"pw_psu",type:"make",grade:"fa"},{s:"liteon",t:"pw_psu",type:"make",grade:"fa"},{s:"fsp",t:"pw_psu",type:"make"},{s:"acbel",t:"pw_psu",type:"make"},
+  {s:"delta",t:"pw_hvdc",type:"make",grade:"fa"},{s:"liteon",t:"pw_hvdc",type:"make"},{s:"bizlink",t:"pw_hvdc",type:"make"},
+  {s:"hanchuan",t:"pw_passive",type:"make"},{s:"sunde",t:"pw_passive",type:"make"},
+
+  // ===== 連接器第三層 =====
+  {s:"cn_socket",t:"cn_gpu_skt",type:"sub"},{s:"cn_socket",t:"cn_rail",type:"sub"},{s:"cn_socket",t:"cn_cable",type:"sub"},
+  {s:"lotes",t:"cn_gpu_skt",type:"make",grade:"fa"},
+  {s:"kingslide",t:"cn_rail",type:"make"},{s:"chenbro",t:"cn_rail",type:"make"},
+  {s:"bizlink",t:"cn_cable",type:"make"},{s:"sinbon",t:"cn_cable",type:"make"},{s:"hanchuan",t:"cn_cable",type:"make"},
+
+  // ===== PCB/CCL 第三層 =====
+  {s:"pcb_hdi",t:"pcb_svr",type:"sub"},{s:"pcb_hdi",t:"pcb_ccl",type:"sub"},{s:"pcb_hdi",t:"pcb_copper",type:"sub"},{s:"pcb_hdi",t:"pcb_glass",type:"sub"},
+  {s:"gce",t:"pcb_svr",type:"make",grade:"fa"},{s:"gaotech",t:"pcb_svr",type:"make"},{s:"zdkay",t:"pcb_svr",type:"make"},{s:"trtech",t:"pcb_svr",type:"make",grade:"fa"},
+  {s:"emc",t:"pcb_ccl",type:"make",grade:"fa"},{s:"iteq",t:"pcb_ccl",type:"make",grade:"fa"},{s:"tuc",t:"pcb_ccl",type:"make",grade:"fa"},
+  {s:"jentec",t:"pcb_copper",type:"make"},
+  {s:"fujio",t:"pcb_glass",type:"make"},
+
+  // ===== 重電第三層 =====
+  {s:"grid_trans",t:"grid_xfmr",type:"sub"},{s:"grid_trans",t:"grid_gis",type:"sub"},{s:"grid_trans",t:"grid_dist",type:"sub"},
+  {s:"fortune",t:"grid_xfmr",type:"make",grade:"fa"},{s:"shihlin",t:"grid_xfmr",type:"make",grade:"fa"},{s:"teco",t:"grid_xfmr",type:"make"},
+  {s:"chong",t:"grid_gis",type:"make",grade:"fa"},
+  {s:"ally",t:"grid_dist",type:"make"},{s:"taya",t:"grid_dist",type:"make"},
+
+  // ===== 重要上游材料(第 12 大分類) =====
+  // MATERIAL → 子分類
+  {s:"MATERIAL",t:"mat_compound",type:"sub"},{s:"MATERIAL",t:"mat_wafer",type:"sub"},{s:"MATERIAL",t:"mat_chem",type:"sub"},{s:"MATERIAL",t:"mat_gas",type:"sub"},
+  // 子分類 → 第三層
+  {s:"mat_compound",t:"mat_sic",type:"sub"},{s:"mat_compound",t:"mat_gan",type:"sub"},{s:"mat_compound",t:"mat_inp",type:"sub"},{s:"mat_compound",t:"mat_gaas",type:"sub"},
+  {s:"mat_wafer",t:"mat_12in",type:"sub"},{s:"mat_wafer",t:"mat_soi",type:"sub"},
+  {s:"mat_chem",t:"mat_photoresist",type:"sub"},{s:"mat_chem",t:"mat_stripper",type:"sub"},{s:"mat_chem",t:"mat_cmp",type:"sub"},
+  {s:"mat_gas",t:"mat_egas",type:"sub"},{s:"mat_gas",t:"mat_precursor",type:"sub"},
+
+  // SiC 公司 → 標的
+  {s:"episil",t:"mat_sic",type:"make"},{s:"epistar_s",t:"mat_sic",type:"make"},{s:"mosel",t:"mat_sic",type:"make"},{s:"wafer_works",t:"mat_sic",type:"make"},{s:"taya_chip",t:"mat_sic",type:"make"},
+  // GaN
+  {s:"gwc",t:"mat_gan",type:"make",grade:"fa"},{s:"vis_t",t:"mat_gan",type:"make"},{s:"episil",t:"mat_gan",type:"make"},{s:"epistar_s",t:"mat_gan",type:"make"},{s:"win_semi",t:"mat_gan",type:"make"},{s:"visual_pp",t:"mat_gan",type:"make"},{s:"taya_chip",t:"mat_gan",type:"make"},
+  // InP
+  {s:"luxnet",t:"mat_inp",type:"make"},{s:"visual_pp",t:"mat_inp",type:"make"},{s:"iet",t:"mat_inp",type:"make"},{s:"foci",t:"mat_inp",type:"make"},{s:"sicmix",t:"mat_inp",type:"make"},
+  // GaAs
+  {s:"win_semi",t:"mat_gaas",type:"make"},{s:"visual_pp",t:"mat_gaas",type:"make"},{s:"iet",t:"mat_gaas",type:"make"},
+
+  // 矽晶圓
+  {s:"gwc",t:"mat_12in",type:"make"},{s:"sumco_tw",t:"mat_12in",type:"make"},{s:"wafer_works",t:"mat_12in",type:"make"},
+  {s:"wafer_works",t:"mat_soi",type:"make"},
+
+  // 特化
+  {s:"emat",t:"mat_photoresist",type:"make",grade:"fa"},
+  {s:"taisol_chem",t:"mat_stripper",type:"make",grade:"fa"},{s:"unison",t:"mat_stripper",type:"make"},{s:"emat",t:"mat_stripper",type:"make"},{s:"daxin",t:"mat_stripper",type:"make"},{s:"yougo",t:"mat_stripper",type:"make"},{s:"dragonjet",t:"mat_stripper",type:"make"},{s:"changhsing",t:"mat_stripper",type:"make"},
+  {s:"chinghua",t:"mat_cmp",type:"make",grade:"fa"},{s:"taisol_chem",t:"mat_cmp",type:"make"},{s:"kuokuang",t:"mat_cmp",type:"make"},
+  // 既有 中砂(CMP 鑽石碟) 跨界
+  {s:"kinik",t:"mat_cmp",type:"make"},
+  // 特氣 / 前驅物
+  {s:"taichem",t:"mat_precursor",type:"make",grade:"fa"},{s:"yuchuan",t:"mat_precursor",type:"make"},
+  {s:"topco",t:"mat_egas",type:"make"},{s:"holiday",t:"mat_egas",type:"make"},
+
+  // ===== 跨分類受惠線(MATERIAL 是平台,拉動多應用) =====
+  // 化合物半導體 → 電源/光通訊
+  {s:"mat_sic",t:"pw_sic_gan",type:"coop"},  // SiC → 功率元件
+  {s:"mat_gan",t:"pw_sic_gan",type:"coop"},  // GaN → 功率元件
+  {s:"mat_inp",t:"net_cpo",type:"coop"},     // InP → CPO 光通訊
+  {s:"mat_gaas",t:"net_cpo",type:"coop"},              // GaAs → 光通訊
+  // 矽晶圓 → 晶圓代工/先進封裝
+  {s:"mat_12in",t:"pkg_foundry",type:"coop"},
+  // 特化/特氣 → 晶圓代工/CoWoS
+  {s:"mat_chem",t:"pkg_foundry",type:"coop"},
+  {s:"mat_chem",t:"pkg_equip",type:"coop"},
+  {s:"mat_gas",t:"pkg_foundry",type:"coop"},
+
+  // 受惠線:2nm GAA + CoWoS 擴產 → 特化在地化龍頭
+  {s:"MATERIAL",t:"emat",type:"benefit"},{s:"MATERIAL",t:"chinghua",type:"benefit"},{s:"MATERIAL",t:"taisol_chem",type:"benefit"},{s:"MATERIAL",t:"taichem",type:"benefit"},
+  // 受惠線:第三類半導體 → 環球晶/穩懋/漢磊
+  {s:"mat_compound",t:"gwc",type:"benefit"},{s:"mat_compound",t:"win_semi",type:"benefit"},{s:"mat_compound",t:"episil",type:"benefit"},
+
+  // ===== AI 晶片補完:結構與公司線 =====
+  {s:"chip_asic",t:"chip_gpu_main",type:"sub"},{s:"chip_asic",t:"chip_npu",type:"sub"},{s:"chip_asic",t:"chip_auto",type:"sub"},
+  {s:"nvidia",t:"chip_gpu_main",type:"make"},{s:"amd",t:"chip_gpu_main",type:"make"},{s:"broadcom",t:"chip_gpu_main",type:"make"},
+  {s:"mtk",t:"chip_npu",type:"make"},{s:"realtek",t:"chip_npu",type:"make"},{s:"vatic",t:"chip_npu",type:"make"},{s:"andes",t:"chip_npu",type:"make"},
+  {s:"mtk",t:"chip_auto",type:"make"},{s:"gusc",t:"chip_auto",type:"make"},{s:"faraday",t:"chip_auto",type:"make"},{s:"realtek",t:"chip_auto",type:"make"},
+  {s:"m31",t:"chip_ip",type:"make"},
+
+  // ===== HBM 補完 =====
+  {s:"mem_hbm",t:"mem_hbm_test",type:"sub"},{s:"mem_dram",t:"mem_dram_t",type:"sub"},{s:"mem_dram",t:"mem_ssd",type:"sub"},
+  {s:"powertech",t:"mem_hbm_test",type:"make",grade:"fa"},{s:"kyec",t:"mem_hbm_test",type:"make",grade:"fa"},{s:"mpi",t:"mem_hbm_test",type:"make"},{s:"chpt",t:"mem_hbm_test",type:"make"},
+  {s:"nanya",t:"mem_dram_t",type:"make"},{s:"phison",t:"mem_ssd",type:"make"},{s:"adata",t:"mem_dram_t",type:"make"},{s:"teamgroup",t:"mem_dram_t",type:"make"},
+
+  // ===== 機器人補完 =====
+  {s:"rb_act",t:"rb_harmonic",type:"sub"},{s:"rb_act",t:"rb_planet",type:"sub"},{s:"rb_act",t:"rb_servo",type:"sub"},
+  {s:"rb_part",t:"rb_screw",type:"sub"},
+  {s:"rb_vision",t:"rb_sensor",type:"sub"},{s:"rb_vision",t:"rb_tact",type:"sub"},
+  {s:"apex_dyn",t:"rb_planet",type:"make",firm:true},
+  {s:"hota",t:"rb_harmonic",type:"make"},{s:"hiwin",t:"rb_harmonic",type:"make"},
+  {s:"hiwin",t:"rb_screw",type:"make"},{s:"chichu",t:"rb_screw",type:"make"},
+  {s:"delta",t:"rb_servo",type:"make"},{s:"teco",t:"rb_servo",type:"make"},{s:"hiwin_micro",t:"rb_servo",type:"make"},
+  {s:"solomon",t:"rb_sensor",type:"make"},{s:"coretronic",t:"rb_sensor",type:"make"},{s:"test_research",t:"rb_sensor",type:"make"},
+
+  // ===== 衛星補完 =====
+  {s:"sat_pcb",t:"sat_pcb_hi",type:"sub"},
+  {s:"sat_rf",t:"sat_array",type:"sub"},{s:"sat_rf",t:"sat_mmw_ic",type:"sub"},
+  {s:"sat_ground",t:"sat_terminal",type:"sub"},
+  {s:"sat_payload",t:"sat_struct",type:"sub"},
+  {s:"compeq",t:"sat_pcb_hi",type:"make"},
+  {s:"sdt",t:"sat_mmw_ic",type:"make"},{s:"win_semi",t:"sat_mmw_ic",type:"make"},{s:"visual_pp",t:"sat_mmw_ic",type:"make"},
+  {s:"yagain",t:"sat_array",type:"make"},{s:"hua_yu",t:"sat_array",type:"make"},{s:"taiyang",t:"sat_array",type:"make"},
+  {s:"sercomm",t:"sat_terminal",type:"make",grade:"fa"},{s:"wantai",t:"sat_terminal",type:"make"},{s:"shih_hsin",t:"sat_terminal",type:"make"},
+  {s:"sunpower_tw",t:"sat_struct",type:"make"},{s:"kingone",t:"sat_struct",type:"make"},
+
+  // ========== A: 半導體設備在地化 ==========
+  {s:"pkg_equip",t:"se_litho",type:"sub"},{s:"pkg_equip",t:"se_etch",type:"sub"},
+  {s:"pkg_equip",t:"se_furn",type:"sub"},{s:"pkg_equip",t:"se_wafer_h",type:"sub"},{s:"pkg_equip",t:"se_inspect_local",type:"sub"},
+  // 微影周邊
+  {s:"galaxy",t:"se_litho",type:"make"},
+  // 蝕刻/沉積
+  {s:"sunfter",t:"se_etch",type:"make"},
+  // 爐管
+  {s:"chinkin",t:"se_furn",type:"make",grade:"fa"},
+  // 晶圓搬運/廠務
+  {s:"hantang",t:"se_wafer_h",type:"make",grade:"fa"},{s:"fanxuan",t:"se_wafer_h",type:"make"},
+  // 在地化檢測
+  {s:"allring",t:"se_inspect_local",type:"make"},{s:"berylinno",t:"se_inspect_local",type:"make"},
+  {s:"hermes_test",t:"se_inspect_local",type:"make"},{s:"ctech",t:"se_inspect_local",type:"make"},
+
+  // 受惠:2nm + CoWoS 擴產 → 設備在地化龍頭
+  {s:"MATERIAL",t:"hantang",type:"benefit"},{s:"MATERIAL",t:"chinkin",type:"benefit"},{s:"MATERIAL",t:"allring",type:"benefit"},
+
+  // ========== E: 矽光子周邊 ==========
+  {s:"net_cpo",t:"cpo_microlens",type:"sub"},{s:"net_cpo",t:"cpo_silicon",type:"sub"},
+  {s:"luxnet_e",t:"cpo_microlens",type:"make"},{s:"applied_o",t:"cpo_microlens",type:"make"},
+  {s:"sicmix",t:"cpo_silicon",type:"make",grade:"fa"},{s:"foci",t:"cpo_silicon",type:"make",grade:"fa"},
+
+  // ========== F: 邊緣 AI / 智慧工廠 ==========
+  {s:"sintech",t:"rb_edge",type:"make"},{s:"apacer",t:"rb_edge",type:"make"},
+
+  // ========== D: AI PC / AI 手機 ==========
+  // 結構:掛在 CHIP 之下做為新的應用層 target
+  {s:"chip_npu",t:"d_aipc",type:"sub"},{s:"chip_npu",t:"d_aiphone",type:"sub"},{s:"chip_npu",t:"d_periph",type:"sub"},
+  // AI PC ODM + 品牌
+  {s:"asus",t:"d_aipc",type:"make",grade:"fa"},{s:"acer",t:"d_aipc",type:"make"},{s:"micro_star_b",t:"d_aipc",type:"make",grade:"fa"},
+  {s:"quanta",t:"d_aipc",type:"make"},{s:"wistron",t:"d_aipc",type:"make"},{s:"compal",t:"d_aipc",type:"make"},{s:"pegatron",t:"d_aipc",type:"make"},
+  // AI 手機(聯發科+品牌組裝)
+  {s:"mtk",t:"d_aiphone",type:"make"},{s:"pegatron",t:"d_aiphone",type:"make"},{s:"foxconn",t:"d_aiphone",type:"make"},
+  // 周邊
+  {s:"chicony",t:"d_periph",type:"make"},{s:"primax",t:"d_periph",type:"make"},{s:"aten",t:"d_periph",type:"make"},
+  // 受惠線
+  {s:"d_aipc",t:"chicony",type:"benefit"},{s:"d_aipc",t:"asus",type:"benefit"},{s:"d_aipc",t:"acer",type:"benefit"},
+
+  // ========== Apple AI 鏈 ==========
+  // Apple → 台廠
+  {s:"apple_d",t:"pkg_tsmc",grade:"fa",type:"coop"},          // 台積電 N3P 獨家
+  {s:"apple_d",t:"foxconn",type:"coop",grade:"fa"},            // 鴻海 iPhone+AI 組裝主力
+  {s:"apple_d",t:"pegatron",type:"coop",grade:"fa"},           // 和碩 iPhone 組裝
+  {s:"apple_d",t:"largan",type:"coop",grade:"fa"},             // 大立光 鏡頭主供
+  {s:"apple_d",t:"genius_o",type:"coop",grade:"fa"},           // 玉晶光 鏡頭副供
+  {s:"apple_d",t:"epistar_f",type:"coop",grade:"fa"},          // 富采 Mini LED
+  {s:"apple_d",t:"innolux",grade:"fa",type:"coop"},            // 群創 FOPLP Baltra
+  {s:"apple_d",t:"gusc",type:"coop"},               // 創意傳協力 Apple ASIC
+  // Apple AI 鏈 target
+  {s:"CHIP",t:"apple_chain",type:"sub"},
+  {s:"apple_chain",t:"pkg_tsmc",type:"make"},{s:"apple_chain",t:"largan",type:"make"},{s:"apple_chain",t:"genius_o",type:"make"},
+  {s:"apple_chain",t:"epistar_f",type:"make"},{s:"apple_chain",t:"innolux",type:"make"},
+
+  // ========== 量子運算(第 15 大分類) ==========
+  {s:"QUANTUM",t:"qt_hw",type:"sub"},{s:"QUANTUM",t:"qt_ctrl",type:"sub"},
+  {s:"QUANTUM",t:"qt_comm",type:"sub"},{s:"QUANTUM",t:"qt_optical",type:"sub"},
+  // 量子硬體 / 系統
+  {s:"quanta",t:"qt_hw",type:"make"},{s:"foxconn",t:"qt_hw",type:"make"},{s:"wistron",t:"qt_hw",type:"make"},{s:"compal",t:"qt_hw",type:"make"},
+  // 量子控制晶片
+  {s:"compeq_kj",t:"qt_ctrl",type:"make"},{s:"pkg_tsmc",t:"qt_ctrl",type:"make"},
+  // 量子通訊
+  {s:"chunghwa_t",t:"qt_comm",type:"make",grade:"fa"},
+  // 光量子
+  {s:"luxnet",t:"qt_optical",type:"make"},{s:"appliedo_q",t:"qt_optical",type:"make"},
+  {s:"polestar_q",t:"qt_optical",type:"make"},{s:"yiyuansu",t:"qt_optical",type:"make"},
+  // 跨分類:量子需要半導體製造
+  {s:"QUANTUM",t:"ADVPKG",type:"coop"},
+  {s:"QUANTUM",t:"CHIP",type:"coop"},
+
+  // ========== Stargate / 中東 AI 主權 ==========
+  // Stargate → 既有 CSP/晶片廠
+  {s:"stargate_d",t:"nvidia_d",type:"coop"},        // Nvidia 戰略 1000 億
+  {s:"stargate_d",t:"openai",type:"coop"},          // 主導方
+  {s:"stargate_d",t:"microsoft",type:"coop"},       // 創始成員
+  {s:"stargate_d",t:"broadcom",type:"coop"},        // 百億 ASIC 訂單
+  {s:"stargate_d",t:"pkg_tsmc",type:"coop"},        // 代工
+  {s:"stargate_d",t:"foxconn",type:"coop"},         // 機櫃 ODM 外溢
+  {s:"stargate_d",t:"quanta",type:"coop"},
+  {s:"stargate_d",t:"wiwynn",type:"coop"},
+  {s:"stargate_d",t:"auras",type:"coop"},           // 散熱
+  {s:"stargate_d",t:"delta",type:"coop"},           // 電源
+  // 中東 AI 主權
+  {s:"humain_d",t:"nvidia_d",type:"coop"},          // GB300 訂購
+  {s:"humain_d",t:"foxconn",type:"coop"},
+  {s:"humain_d",t:"quanta",type:"coop"},
+  {s:"g42_d",t:"microsoft",type:"coop"},            // 微軟 15 億
+  {s:"g42_d",t:"nvidia_d",type:"coop"},
+  {s:"g42_d",t:"quanta",type:"coop"},
+
+
+
+  // ========== 新增公司的連結 ==========
+  // PCB 次主流
+  {s:"jcb_p",t:"pcb_svr",type:"make"},{s:"chinpoon",t:"pcb_svr",type:"make"},{s:"chinPoligon",t:"pcb_svr",type:"make"},
+  {s:"flexium",t:"pcb_svr",type:"make"},{s:"dynamic_e",t:"pcb_svr",type:"make"},{s:"unitech_pcb",t:"pcb_svr",type:"make"},
+  {s:"chinPolyt",t:"pcb_svr",type:"make"},{s:"thaipcb",t:"pcb_svr",type:"make"},{s:"globalpcb",t:"pcb_svr",type:"make"},
+  {s:"glory_e",t:"pcb_svr",type:"make"},{s:"tripod_t",t:"pcb_svr",type:"make"},
+  // PCB 衛星
+  {s:"jcb_p",t:"sat_pcb_hi",type:"make"},
+
+  // 散熱次主流
+  {s:"sunon",t:"th_air",type:"make"},{s:"lotes_t",t:"th_coldplate",type:"make",grade:"fa"},{s:"lotes_t",t:"th_cdu",type:"make"},
+  {s:"lotes_t",t:"th_immersion",type:"make"},{s:"superalloy",t:"th_air",type:"make"},{s:"superalloy",t:"th_coldplate",type:"make"},
+  {s:"adda",t:"th_air",type:"make"},{s:"yenSun",t:"th_air",type:"make"},
+  {s:"yulon_p",t:"th_coldplate",type:"make"},{s:"sintec",t:"th_coldplate",type:"make"},
+
+  // 連接器/機構/電源線材
+  {s:"liangwei",t:"cn_cable",type:"make"},{s:"chh",t:"cn_cable",type:"make",grade:"fa"},{s:"vanjacent",t:"cn_socket",type:"make"},
+  {s:"aibao",t:"cn_rail",type:"make"},
+
+  // IC 設計
+  {s:"novatek",t:"chip_npu",type:"make"},{s:"raydium",t:"chip_npu",type:"make"},{s:"silergy",t:"chip_npu",type:"make"},
+  {s:"ali",t:"chip_npu",type:"make"},
+  {s:"pixart",t:"rb_sensor",type:"make"},{s:"vivotek",t:"rb_sensor",type:"make"},{s:"global_u",t:"rb_sensor",type:"make"},
+  {s:"novatek",t:"chip_auto",type:"make"},{s:"silergy",t:"chip_auto",type:"make"},
+  {s:"silergy",t:"pw_psu",type:"make"},
+
+  // 同集團延伸 — 被動元件
+  {s:"chilisin",t:"pw_indmag",type:"make"},{s:"chilisin",t:"pw_chipres",type:"make"},
+  {s:"taiclin",t:"pw_alum",type:"make"},
+
+  // 邊緣 AI / 工業電腦
+  {s:"aaeon",t:"rb_edge",type:"make"},{s:"axiomtek",t:"rb_edge",type:"make"},{s:"systex",t:"rb_edge",type:"make"},
+  {s:"posiflex",t:"rb_edge",type:"make"},
+  {s:"airtac",t:"rb_part",type:"make"},
+
+  // 矽光子周邊
+  {s:"applied_o",t:"cpo_engine",type:"make"},{s:"chenming",t:"cpo_engine",type:"make"},
+
+  // 信佳 機構件
+  {s:"sinopower",t:"cn_rail",type:"make"},
+
+  // ===== CSP / 客戶端的供需線 =====
+  // Nvidia → ODM + 各零組件
+  {s:"nvidia_d",t:"foxconn",type:"coop",grade:"fa"},      // 鴻海 GB200/300 主力
+  {s:"nvidia_d",t:"quanta",type:"coop"},
+  {s:"nvidia_d",t:"auras",type:"coop"},        // 奇鋐液冷
+  {s:"nvidia_d",t:"shuanghong",type:"coop"},   // 雙鴻 GB300 認證
+  {s:"nvidia_d",t:"delta",type:"coop"},        // 800V HVDC
+  {s:"nvidia_d",t:"lotes",type:"coop"},        // GPU socket
+  {s:"nvidia_d",t:"hosiden",type:"coop"},      // 高壓 MLCC Vera Rubin
+  {s:"nvidia_d",t:"sinanen",type:"coop"},      // 高壓 MLCC
+  {s:"nvidia_d",t:"jamicon",type:"coop"},      // 鋁電容 Vera Rubin
+  {s:"nvidia_d",t:"diodes_tw",type:"coop"},    // 德微 800VDC
+  {s:"nvidia_d",t:"jpc",type:"coop"},          // 上詮 FAU
+  {s:"nvidia_d",t:"mpi",type:"coop"},          // 旺矽 Rubin 測試
+  // AWS → Trainium ASIC 與緯穎
+  {s:"aws",t:"alchip",grade:"fa",type:"coop"},            // Trainium 主設計
+  {s:"aws",t:"wiwynn",grade:"fa",type:"coop"},            // 緯穎 AWS ASIC
+  {s:"aws",t:"sdo",type:"coop"},                         // 華星光 AWS 雲端
+  {s:"aws",t:"maico",type:"coop"},                       // 邁科水冷
+  // Google → TPU 與聯發科/旺矽/雍智
+  {s:"google_d",t:"mtk",type:"coop"},          // 聯發科 TPU v8 推論版
+  {s:"google_d",t:"mpi",type:"coop"},          // 旺矽 TPU 測試
+  {s:"google_d",t:"yljt",type:"coop"},         // 雍智 Google TPU
+  {s:"google_d",t:"quanta",type:"coop"},       // 廣達 Google 雲端
+  {s:"google_d",t:"auras",type:"coop"},                  // 奇鋐 TPU v8 水冷板
+  // Microsoft → Maia 與緯創
+  {s:"microsoft",t:"gusc",type:"coop"},        // 創意傳 Maia 協力
+  {s:"microsoft",t:"wistron",type:"coop"},     // 緯創 Azure
+  {s:"microsoft",t:"quanta",type:"coop"},                // 廣達 Microsoft 雲端
+  // Meta → MTIA 與廣達
+  {s:"meta_d",t:"mtk",type:"coop"},                       // 聯發科 MTIA 協力
+  {s:"meta_d",t:"quanta",type:"coop",grade:"fa"},         // 廣達 Meta 主力
+  {s:"meta_d",t:"broadcom",type:"coop"},        // 博通 MTIA 主力
+  // OpenAI → 博通 ASIC
+  {s:"openai",t:"broadcom",grade:"fa",type:"coop"},        // 百億美元 ASIC
+  {s:"openai",t:"nvidia_d",type:"coop"},                  // Nvidia 戰略投資
+  // SpaceX → Starlink 供應鏈
+  {s:"spacex_d",t:"compeq",type:"coop"},       // 華通 9 成市佔
+  {s:"spacex_d",t:"sdt",type:"coop"},          // 昇達科 8 成衛星營收
+  {s:"spacex_d",t:"micro_star",type:"coop"},              // 同欣電 RF 模組
+  {s:"spacex_d",t:"sunpower_tw",type:"coop"},             // 元晶太陽能
+  {s:"spacex_d",t:"thinkpower",type:"coop"},              // 鈦昇 FOPLP 量產設備
+
+  // ===== 機器人(第 13 大分類) =====
+  {s:"ROBOT",t:"rb_part",type:"sub"},{s:"ROBOT",t:"rb_act",type:"sub"},{s:"ROBOT",t:"rb_int",type:"sub"},{s:"ROBOT",t:"rb_vision",type:"sub"},{s:"ROBOT",t:"rb_edge",type:"sub"},
+
+  // 機器人公司 → 子分類
+  {s:"hiwin",t:"rb_part",type:"make"},{s:"hota",t:"rb_part",type:"make"},{s:"chichu",t:"rb_part",type:"make"},{s:"ying_han",t:"rb_part",type:"make"},
+  {s:"apex_dyn",t:"rb_act",type:"make"},{s:"hota",t:"rb_act",type:"make"},{s:"hiwin_micro",t:"rb_act",type:"make"},
+  {s:"foxconn",t:"rb_int",type:"make"},{s:"delta",t:"rb_int",type:"make"},{s:"techman",t:"rb_int",type:"make",grade:"fa"},{s:"quanta_storage",t:"rb_int",type:"make"},{s:"solomon",t:"rb_int",type:"make"},{s:"logah",t:"rb_int",type:"make"},
+  {s:"test_research",t:"rb_vision",type:"make"},{s:"coretronic",t:"rb_vision",type:"make"},{s:"solomon",t:"rb_vision",type:"make"},{s:"genius",t:"rb_vision",type:"make"},
+  {s:"adlink",t:"rb_edge",type:"make"},
+
+  // 機器人跨分類受惠線:機器人需要 AI 晶片、散熱、感測、減速馬達
+  {s:"ROBOT",t:"CHIP",type:"coop"},          // 機器人需要 AI 晶片
+  {s:"ROBOT",t:"THERMAL",type:"coop"},       // 機器人需要散熱
+  {s:"ROBOT",t:"POWER",type:"coop"},         // 機器人需要電源/馬達
+  {s:"rb_part",t:"hiwin",type:"benefit"},
+  {s:"rb_act",t:"apex_dyn",type:"benefit"},     // Amazon 認證+人形機器人需求
+  {s:"rb_int",t:"foxconn",type:"benefit"},                // 鴻海 NVIDIA 合作
+
+  // ===== 低軌衛星(第 14 大分類) =====
+  {s:"SAT",t:"sat_pcb",type:"sub"},{s:"SAT",t:"sat_rf",type:"sub"},{s:"SAT",t:"sat_ground",type:"sub"},{s:"SAT",t:"sat_payload",type:"sub"},
+
+  // 衛星公司 → 子分類
+  {s:"compeq",t:"sat_pcb",type:"make"},{s:"radiant",t:"sat_pcb",type:"make"},{s:"emc",t:"sat_pcb",type:"make"},
+  {s:"sdt",t:"sat_rf",type:"make"},{s:"micro_star",t:"sat_rf",type:"make"},{s:"yagain",t:"sat_rf",type:"make"},{s:"win_semi",t:"sat_rf",type:"make"},
+  {s:"sercomm",t:"sat_ground",type:"make"},{s:"taiyang",t:"sat_ground",type:"make"},{s:"wantai",t:"sat_ground",type:"make"},{s:"shih_hsin",t:"sat_ground",type:"make"},
+  {s:"innolux",t:"sat_payload",type:"make"},{s:"sunpower_tw",t:"sat_payload",type:"make"},
+
+  // 衛星跨分類受惠線:衛星需要 PCB、CCL、化合物半導體(高頻射頻)、功率元件
+  {s:"SAT",t:"PCBCCL",type:"coop"},          // 衛星需要 PCB
+  {s:"SAT",t:"MATERIAL",type:"coop"},        // 衛星需要射頻材料(GaAs/GaN/InP)
+  {s:"SAT",t:"POWER",type:"coop"},           // 衛星需要功率元件
+  {s:"sat_pcb",t:"compeq",type:"benefit"},   // Starlink PCB 龍頭
+  {s:"sat_rf",t:"sdt",type:"benefit"},       // SpaceX 來台擴單
+  {s:"mat_gaas",t:"sat_rf",type:"coop"},               // GaAs → 衛星射頻
+  {s:"mat_gan",t:"sat_rf",type:"coop"},                // GaN → 衛星射頻
+
+  // ========== F: 個股對個股(真實公開憑據) ==========
+  // 奇鋐 → Microsoft / Oracle(外資報告+多次法說明確 Cold Plate + CDM 供應鏈)
+  {s:"microsoft",t:"auras",type:"coop",grade:"fa"},
+  {s:"auras",t:"microsoft",type:"benefit"},  // 補方向
+  // 雙鴻 → Meta / AWS / Microsoft(法說明確打入三大 CSP)
+  {s:"meta_d",t:"shuanghong",type:"coop",grade:"fa"},
+  {s:"aws",t:"shuanghong",type:"coop",grade:"fa"},
+  {s:"microsoft",t:"shuanghong",type:"coop",grade:"fa"},
+  // 雙鴻 → Nvidia GB300 認證(公司公告)
+  // 已有 {s:"nvidia_d",t:"shuanghong",type:"coop",grade:"fa"} 不重複
+  // 晟銘電 → Meta(Sidecar 水冷機櫃 4 萬櫃,與廣達合作)
+  {s:"meta_d",t:"smei",type:"coop",grade:"fa"},
+  {s:"smei",t:"quanta",type:"coop",grade:"fa"},  // 晟銘電與廣達合作出貨
+  // 健策 → Nvidia Vera Rubin 均熱片
+  {s:"nvidia_d",t:"jentech",type:"coop",grade:"fa"},
+  // 大立光 → Apple iPhone 鏡頭(已有 grade:fa,不重複)
+  // 廣達 → Nvidia GB300 ODM
+  {s:"nvidia_d",t:"quanta",type:"coop",grade:"fa"},  // 補:已有 coop 但無 grade
+  // 鴻海 → Nvidia(已有 grade:fa,不重複)
+  // 緯穎 → AWS(已有 grade:fa)
+  // 世芯 → AWS Trainium(已有 grade:fa)
+  // 中砂 → 台積電 CMP 鑽石碟(法說多次)
+  {s:"tsmc",t:"kinik",type:"coop",grade:"fa"},
+  // 漢唐 → 台積電 2nm/CoWoS 廠務工程(法說多次)
+  {s:"tsmc",t:"hantang",type:"coop",grade:"fa"},
+  // 京鼎 → AMAT OEM(已有 grade:fa)
+  // 新應材 → 台積電 N2 Rinse 獨家
+  {s:"tsmc",t:"emat",type:"coop",grade:"fa"},
+  // 三福化 → 台積電 AP7/8 剝離劑
+  {s:"tsmc",t:"taisol_chem",type:"coop",grade:"fa"},
+  // 中華化 → 台積電先進製程硫酸(全球唯二)
+  {s:"tsmc",t:"chinghua",type:"coop",grade:"fa"},
+  // 台特化 → 台積電矽乙烷(台灣唯一)
+  {s:"tsmc",t:"taichem",type:"coop",grade:"fa"},
+  // 鈦昇 → Intel 玻璃基板雷射改質(已有 grade:fa)
+  // 廣達 → Meta MTIA / AWS / Google(已有 grade:fa)
+  // 群創 → Apple Baltra FOPLP(已有 grade:fa)
+  // 上詮 → Nvidia FAU(已有 grade:fa)
+
+
+  // ========== E 連結:玻璃基板更細 ==========
+  {s:"pkg_glass",t:"gcs_laser_mod",type:"sub"},{s:"pkg_glass",t:"gcs_etch",type:"sub"},
+  {s:"pkg_glass",t:"gcs_seed",type:"sub"},{s:"pkg_glass",t:"gcs_fill",type:"sub"},
+  // 雷射改質
+  {s:"thinkpower",t:"gcs_laser_mod",type:"make",grade:"fa"},  // 鈦昇 Intel 合作
+  {s:"laserk",t:"gcs_laser_mod",type:"make"},
+  // 濕蝕刻 / 氣相蝕刻
+  {s:"jincheng",t:"gcs_etch",type:"make"},
+  {s:"sunfter",t:"gcs_etch",type:"make"},
+  // RDL 晶種層濺鍍
+  {s:"youwei",t:"gcs_seed",type:"make"},
+  // 通孔金屬填充
+  {s:"jincheng",t:"gcs_fill",type:"make"},
+
+  // ========== E 連結:散熱更細 ==========
+  {s:"th_cdu",t:"th_qdc",type:"sub"},
+  {s:"th_immersion",t:"th_sidecar",type:"sub"},  // Sidecar 屬於浸沒式類型(機櫃水冷)
+  {s:"th_coldplate",t:"th_ihs_lid",type:"sub"},
+  {s:"th_coldplate",t:"th_dual_flow",type:"sub"},
+  // 快接頭 QD
+  {s:"fositek",t:"th_qdc",type:"make",grade:"fa"},
+  // Sidecar 水冷機櫃
+  {s:"smei",t:"th_sidecar",type:"make",grade:"fa"},  // 晟銘電 Meta 訂單
+  // 均熱片 IHS(健策主力)
+  {s:"jentech",t:"th_ihs_lid",type:"make",grade:"fa"},
+  // 雙向水冷(奇鋐)
+  {s:"auras",t:"th_dual_flow",type:"make",grade:"fa"},
+
+  // ========== 台積電擴產廠務工程鏈 ==========
+  {s:"yason",t:"se_wafer_h",type:"make",grade:"fa"},      // 亞翔 法說明確台積電
+  {s:"yangkee",t:"se_wafer_h",type:"make",grade:"fa"},    // 洋基 200 億美系大單
+  {s:"sunsing",t:"se_wafer_h",type:"make",grade:"fa"},
+  {s:"hanco",t:"se_wafer_h",type:"make"},
+  {s:"silstandard",t:"se_wafer_h",type:"make",grade:"fa"}, // 信紘科 台積電 5 成
+  {s:"ruize",t:"se_wafer_h",type:"make"},
+  {s:"prefab",t:"se_wafer_h",type:"make"},
+  // 台積電個股對個股(法說級訂單)
+  {s:"tsmc",t:"yason",type:"coop",grade:"fa"},
+  {s:"tsmc",t:"silstandard",type:"coop",grade:"fa"},
+  {s:"tsmc",t:"sunsing",type:"coop",grade:"fa"},
+  // 受惠線:台積電擴產 → 廠務工程龍頭(2027 訂單能見度)
+  {s:"MATERIAL",t:"yason",type:"benefit"},
+  {s:"MATERIAL",t:"yangkee",type:"benefit"},
+  {s:"MATERIAL",t:"silstandard",type:"benefit"},
+
+  // ========== 新加公司連結(光通訊+材料補完) ==========
+  // 環宇-KY 800G PD + 化合物半導體三五族代工
+  {s:"globalcomm",t:"cpo_engine",type:"make",grade:"fa"},
+  {s:"globalcomm",t:"mat_gaas",type:"make"},
+  {s:"globalcomm",t:"mat_inp",type:"make"},
+  {s:"globalcomm",t:"mat_gan",type:"make"},
+  // 前鼎 光通訊主動元件
+  {s:"foryard",t:"cpo_engine",type:"make"},
+  // 宏捷科 VCSEL 化合物半導體代工
+  {s:"axgyo",t:"mat_gaas",type:"make"},
+  {s:"axgyo",t:"cpo_laser",type:"make"},
+  // 聯鈞 光通訊元件
+  {s:"linkjet",t:"cpo_engine",type:"make"},
+  // 毅嘉 光通訊後段封裝
+  {s:"yija",t:"pcb_svr",type:"make"},{s:"yija",t:"net_cpo",type:"benefit"},
+  // 美達科技 矽光子被動元件
+  {s:"meda",t:"SEMI_TEST",type:"make"},{s:"meda",t:"cpo_engine",type:"benefit"},
+  // 創威 光通訊
+  {s:"chuangwei",t:"net_cpo",type:"make"},
+  // 台通 光纖
+  {s:"taitone",t:"net_cpo",type:"make"},
+  // 勤凱 先進封裝乾膜光阻 → 直接連台積電(法說級)
+  {s:"chempion",t:"pkg_equip",type:"make"},
+  {s:"tsmc",t:"chempion",type:"coop",grade:"fa"},
+  // 采鈺 矽光子製程整合 → 台積電子公司,CPO 鏈
+  {s:"vislink",t:"cpo_silicon",type:"make"},
+  {s:"vislink",t:"net_cpo",type:"make"},
+
+  // 環宇-KY 受惠線
+  {s:"net_cpo",t:"globalcomm",type:"benefit"},
+  {s:"mat_inp",t:"globalcomm",type:"benefit"},
+
+  // ========== 新加公司連結(二輪) ==========
+  // 高速介面 IC
+  {s:"parade",t:"chip_npu",type:"make",grade:"fa"},  // Retimer 法說明確 AI GPU 必備
+  {s:"nvidia_d",t:"parade",type:"coop",grade:"fa"},
+  {s:"aspeed",t:"chip_npu",type:"make",grade:"fa"},   // BMC 全球 7 成市佔
+  {s:"SERVER",t:"aspeed",type:"benefit"},               // AI 伺服器 → 信驊每台必備
+  {s:"asmedia",t:"chip_npu",type:"make"},               // USB/PCIe 控制 IC
+  {s:"airoha",t:"chip_npu",type:"make"},                // WiFi RF FEM
+
+  // 測試封測
+  {s:"sigurd_t",t:"SEMI_TEST",type:"make"},
+  {s:"liwei",t:"SEMI_TEST",type:"make"},
+  {s:"hanco",t:"se_etch",type:"make",grade:"fa"},                  // 漢民代理半導體設備
+  {s:"hanco",t:"se_litho",type:"make",grade:"fa"},
+  {s:"jingcaiwei",t:"cpo_silicon",type:"make"},         // 精材 CIS WLCSP → 矽光子
+
+  // 散熱
+  {s:"yejiang",t:"th_air",type:"make"},
+  {s:"yejiang",t:"th_coldplate",type:"make"},
+  {s:"dynamic_t",t:"th_coldplate",type:"make"},
+  {s:"dynamic_t",t:"th_air",type:"make"},
+
+  // 電源
+  {s:"peg",t:"pw_diode",type:"make"},
+  {s:"peg",t:"pw_hvdc",type:"make",grade:"fa"},
+  {s:"dah_chung",t:"pw_mosfet",type:"make"},
+  {s:"jingli",t:"pw_psu",type:"make"},
+  {s:"tongjia",t:"pw_psu",type:"make"},
+  {s:"global_mix",t:"pw_psu",type:"make"},
+
+  // 光通訊
+  {s:"shangping",t:"net_cpo",type:"make"},
+
+  // 設備耗材
+  {s:"siangmin",t:"se_wafer_h",type:"make"},
+  {s:"siangmin",t:"pkg_equip",type:"make"},
+  // ========== narrative 補完:結構與題材連結 ==========
+  // ROOT → 新分類(4 個新題材)
+  {s:"ROOT",t:"UAV",type:"sub"},{s:"ROOT",t:"MACHINE",type:"sub"},
+  {s:"ROOT",t:"EINK",type:"sub"},{s:"ROOT",t:"CABLE_HV",type:"sub"},
+  {s:"ROOT",t:"TUNGSTEN",type:"sub"},{s:"ROOT",t:"QUARTZ",type:"sub"},
+
+  // 01 CSP ASIC 鏈
+  {s:"icevo",t:"chip_npu",type:"make"},
+
+  // 02 BBU
+  {s:"sundpower",t:"pw_supercap",type:"make",grade:"fa"},
+  {s:"aes_ky",t:"pw_supercap",type:"make"},
+
+  // 05 DDR4
+  {s:"esmt",t:"mem_dram_t",type:"make"},
+  {s:"psc",t:"mem_dram_t",type:"make",grade:"fa"},
+  {s:"etron",t:"mem_dram_t",type:"make"},
+  {s:"powerflash",t:"mem_dram_t",type:"make"},
+  {s:"huatung",t:"mem_dram_t",type:"make"},
+  {s:"chipmos",t:"mem_dram_t",type:"make"},
+
+  // 10 再生晶圓
+  {s:"sumco_sun",t:"mat_wafer",type:"make",grade:"fa"},
+
+  // 13 無人機(新分類結構)
+  {s:"UAV",t:"uav_main",type:"sub"},{s:"UAV",t:"uav_part",type:"sub"},
+  {s:"thunder",t:"uav_main",type:"make",grade:"fa"},
+  {s:"aidc_t",t:"uav_main",type:"make",grade:"fa"},
+  {s:"getac",t:"uav_part",type:"make",grade:"fa"},
+  {s:"qcomm_tw",t:"uav_part",type:"make"},
+
+  // 15 廠務基建補完
+  {s:"yangkee_alt",t:"se_wafer_h",type:"make"},
+  {s:"qianfu",t:"se_wafer_h",type:"make"},
+  {s:"zhaolian",t:"se_wafer_h",type:"make"},
+
+  // 16 WiFi7 檢測
+  {s:"sporton",t:"SEMI_TEST",type:"make",grade:"fa"},
+  {s:"dongyan",t:"SEMI_TEST",type:"make",grade:"fa"},
+
+  // 17 液冷水泵+機殼
+  {s:"dajing",t:"th_qdc",type:"make",grade:"fa"},
+  {s:"inwin_c",t:"th_coldplate",type:"make"},
+
+  // 18 LEO
+  {s:"micronet",t:"sat_terminal",type:"make",grade:"fa"},
+
+  // 19 工具機(新分類結構)
+  {s:"MACHINE",t:"mach_special",type:"sub"},
+  {s:"buffalo_m",t:"mach_special",type:"make",grade:"fa"},
+  {s:"tongtai",t:"mach_special",type:"make"},
+  {s:"yulee",t:"mach_special",type:"make"},
+  {s:"gaofeng",t:"mach_special",type:"make"},
+  {s:"hartford_m",t:"mach_special",type:"make"},
+  {s:"yacheng",t:"mach_special",type:"make"},
+  {s:"taichung_p",t:"mach_special",type:"make"},
+  {s:"takisawa",t:"mach_special",type:"make"},
+  // 跨題材線:工具機→SiC 加工
+  {s:"MACHINE",t:"mat_sic",type:"coop"},
+
+  // 20 SiC 補完
+  {s:"taiji",t:"mat_sic",type:"make"},
+  {s:"sungshin",t:"mat_sic",type:"make"},
+
+  // 21 高速銅線
+  {s:"chiefcon",t:"cn_cable",type:"make",grade:"fa"},
+  {s:"foxlink_z",t:"cn_cable",type:"make"},
+
+  // 23 超高壓
+  {s:"hsin_hsin",t:"grid_xfmr",type:"make"},
+
+  // 24 電子紙(新分類結構)
+  {s:"EINK",t:"eink_paper",type:"sub"},
+  {s:"prime_view",t:"eink_paper",type:"make",grade:"fa"},
+  {s:"sitronix",t:"eink_paper",type:"make",grade:"fa"},
+  {s:"chenyao",t:"eink_paper",type:"make"},
+  {s:"fitipower",t:"eink_paper",type:"make"},
+  {s:"auo",t:"eink_paper",type:"make"},
+
+  // 26 AI 眼鏡 + 28 MicroLED
+  {s:"htc",t:"d_periph",type:"make",grade:"fa"},
+  {s:"calin",t:"d_periph",type:"make"},
+  {s:"playnitride",t:"cpo_microlens",type:"make",grade:"fa"},
+  {s:"ledoptronics",t:"cpo_microlens",type:"make"},
+  {s:"auo",t:"cpo_microlens",type:"make"},
+
+  // 29 特高壓電纜(新分類)
+  {s:"CABLE_HV",t:"cable_uv",type:"sub"},
+  {s:"datung_c",t:"cable_uv",type:"make",grade:"fa"},
+  {s:"hechi",t:"cable_uv",type:"make",grade:"fa"},
+  {s:"taya",t:"cable_uv",type:"make"},  // 大亞已存,1609
+  // 跨題材:特高壓電纜跟重電同一鏈
+  {s:"GRID",t:"CABLE_HV",type:"coop"},
+
+  // 30 大電力線束
+  {s:"weiheng",t:"cn_cable",type:"make",grade:"fa"},
+
+  // 32 量子(千附精密)
+  {s:"chianpu_q",t:"qt_hw",type:"make"},
+
+  // 33 鎢斷供(新分類)
+  {s:"TUNGSTEN",t:"tungsten_recyc",type:"sub"},
+  {s:"lianyou",t:"tungsten_recyc",type:"make",grade:"fa"},
+  {s:"solartech",t:"tungsten_recyc",type:"make",grade:"fa"},
+  // 跨題材:鎢靶材跟半導體製程相關
+  {s:"TUNGSTEN",t:"MATERIAL",type:"coop"},
+
+  // 34 太空太陽能(中美晶)
+  {s:"sas_silicon",t:"sat_struct",type:"make",grade:"fa"},
+
+  // 35 石英(新分類)
+  {s:"QUARTZ",t:"quartz_xo",type:"sub"},
+  {s:"txc",t:"quartz_xo",type:"make",grade:"fa"},
+  {s:"taitien",t:"quartz_xo",type:"make",grade:"fa"},
+  {s:"taiwan_xtal",t:"quartz_xo",type:"make"},
+  {s:"siward",t:"quartz_xo",type:"make"},
+  {s:"jagh",t:"quartz_xo",type:"make"},
+  // 跨題材:石英是 AI 伺服器+WiFi7 換代驅動
+  {s:"SERVER",t:"QUARTZ",type:"coop"},
+
+  // 機器人補完
+  {s:"michi",t:"rb_int",type:"make"},
+  {s:"adlink_h",t:"rb_edge",type:"make"},
+  {s:"genius_o_robot",t:"rb_sensor",type:"make"},
+  {s:"binstar",t:"rb_int",type:"make"},
+
+  // 功率元件補完
+  {s:"taisemi",t:"pw_diode",type:"make"},
+  {s:"sinopulse",t:"pw_mosfet",type:"make"},
+  {s:"chieflin",t:"pw_mosfet",type:"make"},
+
+  // 31 成熟製程(聯電掛在材料+晶圓代工)
+  {s:"umc",t:"mat_wafer",type:"make"},
+  {s:"umc",t:"chip_asic",type:"make",grade:"fa"},
+
+  // 22 高階被動補完
+  {s:"taiwan_tc_p",t:"pw_indmag",type:"make"},
+  {s:"njiuhao",t:"pw_mlcc_hv",type:"make"},
+
+  // ========== Stage 2 新公司連結 ==========
+  {s:"chipbond",t:"SEMI_TEST",type:"make"},
+  {s:"chipbond",t:"chip_npu",type:"make"},
+  {s:"chipmaxinpc",t:"rb_edge",type:"make"},
+  {s:"unitech_3217",t:"cn_cable",type:"make"},
+  {s:"jamco_3691",t:"pw_psu",type:"make"},
+  {s:"glory_8038",t:"mat_compound",type:"make"},
+  {s:"sino_5511",t:"se_wafer_h",type:"make"},
+  {s:"emperor_8084",t:"rb_edge",type:"make"},
+  {s:"yueh_feng_8121",t:"pw_indmag",type:"make"},
+  {s:"epage_6531",t:"chip_ip",type:"make"},
+  {s:"jeanqi_2369",t:"SEMI_TEST",type:"make"},
+
+  // ========== Stage 3:修補孤兒節點 ==========
+  {s:"deltaopto",t:"rb_edge",type:"make"},
+  {s:"yulon_g",t:"ADVPKG",type:"make"},
+
+];
+
+const COLOR={root:"#e9e6dc",tech:"#e0a14b",subtech:"#46cdd6",target:"#c98fe0",co:"#84ce6f",coForeign:"#7d7d8a"};
+const TYPE_LABEL={root:"大分類 CATEGORY",tech:"粗技術 TECH",subtech:"細分技術 SUB-TECH",target:"檢測標的 TARGET",co:"公司 COMPANY"};
+
+const svg=d3.select("#chart");
+let W=innerWidth,H=innerHeight;
+svg.attr("width",W).attr("height",H);
+const defs=svg.append("defs");
+[["arrowMake","#5b8fd6"],["arrowCoop","#3fae6e"],["arrowBenefit","#ef6a4a"],["arrowWarn","#a874c9"]].forEach(([id,c])=>{
+  defs.append("marker").attr("id",id).attr("viewBox","0 -5 10 10").attr("refX",16).attr("refY",0)
+    .attr("markerWidth",6).attr("markerHeight",6).attr("orient","auto")
+    .append("path").attr("d","M0,-4L9,0L0,4").attr("fill",c);
+});
+const g=svg.append("g");
+const gLink=g.append("g");
+const gNode=g.append("g");
+const zoom=d3.zoom().scaleExtent([0.3,2.6]).on("zoom",e=>g.attr("transform",e.transform));
+svg.call(zoom);
+
+const byId={};NODES.forEach(n=>byId[n.id]=n);
+const adj={};const adjL={};NODES.forEach(n=>{adj[n.id]=[];adjL[n.id]=[];});
+LINKS.forEach((l,i)=>{l._k="L"+i;adj[l.s].push(l.t);adj[l.t].push(l.s);adjL[l.s].push(l);adjL[l.t].push(l);});
+
+// 計算每個「結構節點」距 ROOT 的層深(只沿 sub 線),公司不算在內(固定最右欄)
+const depthOf={};
+(function computeDepth(){
+  depthOf["ROOT"]=0;
+  const q=["ROOT"];
+  while(q.length){
+    const cur=q.shift();
+    LINKS.forEach(l=>{
+      if(l.type==="sub" && l.s===cur && byId[l.t] && byId[l.t].type!=="co" && depthOf[l.t]===undefined){
+        depthOf[l.t]=depthOf[cur]+1; q.push(l.t);
+      }
+    });
+  }
+  // 沒被 sub 連到的結構節點給預設
+  NODES.forEach(n=>{ if(n.type!=="co" && depthOf[n.id]===undefined) depthOf[n.id]=1; });
+})();
+let maxDepth=0; Object.values(depthOf).forEach(d=>{if(d>maxDepth)maxDepth=d;});
+
+let sim,linkSel,nodeSel,selId=null;
+function nodeColor(n){return n.type==="root"?COLOR.root:n.type==="tech"?COLOR.tech:n.type==="subtech"?COLOR.subtech:n.type==="target"?COLOR.target:n.foreign?COLOR.coForeign:COLOR.co;}
+function nodeR(n){return n.type==="root"?20:n.type==="tech"?15:n.type==="subtech"?11:n.type==="target"?8:n.foreign?8:10;}
+let focusId="ROOT";          // 當前中心節點
+let focusLayers=1;           // 顯示幾層(1=單擊,2=雙擊)
+let focusNodes=new Set();    // 當前要顯示的節點
+let focusLinks=new Set();    // 當前要顯示的連線
+let mode="focus";            // "focus" | "chain"
+let autoPanel=false;         // 點節點時是否自動彈詳細面板
+let longPressTimer=null;     // 手機長按計時器
+let longPressed=false;       // 標記長按已觸發(避免後續 click 再次聚焦)
+let showTiming=false;        // 是否顯示時程標記
+// 我的關注清單(localStorage 持久化)
+let watchlist = new Set();
+try { watchlist = new Set(JSON.parse(localStorage.getItem("aimap_watchlist")||"[]")); } catch(e){}
+let watchOnly = false;       // 只顯示關注清單模式
+function saveWatch(){
+  try { localStorage.setItem("aimap_watchlist", JSON.stringify([...watchlist])); } catch(e){}
+}
+function toggleWatch(id){
+  if(watchlist.has(id)) watchlist.delete(id); else watchlist.add(id);
+  saveWatch();
+  updateWatchUI();
+  if(typeof updateDashboard==='function') updateDashboard();
+  restart();
+}
+function updateWatchUI(){
+  d3.select("#btn-watch").text(`⭐ 關注 ${watchlist.size}`);
+}
+// 瀏覽歷史(上一步/下一步)
+let focusHistory=[];
+let historyIdx=-1;
+let suppressHistory=false;   // 內部跳轉時暫停記錄
+function pushHistory(id, layers){
+  if(suppressHistory) return;
+  // 如果在歷史中段點新節點,丟掉後面的
+  focusHistory = focusHistory.slice(0, historyIdx+1);
+  // 避免連續相同
+  const last = focusHistory[focusHistory.length-1];
+  if(last && last.id===id && last.layers===layers) return;
+  focusHistory.push({id, layers});
+  historyIdx = focusHistory.length - 1;
+  if(focusHistory.length>50) focusHistory.shift(), historyIdx--;
+  updateHistoryButtons();
+}
+function updateHistoryButtons(){
+  d3.select("#btn-prev").style("opacity", historyIdx>0 ? 1 : .35).attr("disabled", historyIdx>0 ? null : "true");
+  d3.select("#btn-next").style("opacity", historyIdx<focusHistory.length-1 ? 1 : .35).attr("disabled", historyIdx<focusHistory.length-1 ? null : "true");
+}
+function goPrev(){
+  if(historyIdx<=0) return;
+  historyIdx--;
+  const h=focusHistory[historyIdx];
+  suppressHistory=true;
+  if(h.layers===1) focusOne(h.id); else focusTwo(h.id);
+  suppressHistory=false;
+  updateHistoryButtons();
+}
+function goNext(){
+  if(historyIdx>=focusHistory.length-1) return;
+  historyIdx++;
+  const h=focusHistory[historyIdx];
+  suppressHistory=true;
+  if(h.layers===1) focusOne(h.id); else focusTwo(h.id);
+  suppressHistory=false;
+  updateHistoryButtons();
+}
+
+// 供應鏈視圖:由左到右的主鏈骨架 + 支線
+const CHAIN_SPINE=[
+  {id:"MATERIAL", label:"上游材料"},
+  {id:"ADVPKG",   label:"先進封裝"},
+  {id:"CHIP",     label:"AI 晶片"},
+  {id:"MEM",      label:"HBM/記憶體"},
+  {id:"SERVER",   label:"AI 伺服器"},
+  {id:"GRID",     label:"電力供電"}
+];
+// 支線(掛在伺服器下方,屬機構支援)
+const CHAIN_SIDE_SERVER=[
+  {id:"THERMAL", label:"散熱"},
+  {id:"POWER",   label:"電源"},
+  {id:"CONN",    label:"連接器"},
+  {id:"PCBCCL",  label:"PCB"},
+  {id:"NET",     label:"網路CPO"},
+  {id:"INSPECT", label:"檢測測試"}
+];
+// 應用支線(從主鏈往外拉)
+const CHAIN_SIDE_APP=[
+  {id:"ROBOT", label:"機器人"},
+  {id:"SAT",   label:"衛星"}
+];
+let chainExpanded=new Set();  // 在供應鏈視圖中,被點開的分類(顯示其底下台廠)
+
+function computeFocus(id, layers){
+  focusId=id; focusLayers=layers;
+  focusNodes=new Set([id]);
+  const lvl1=new Set();
+  adj[id].forEach(o=>{focusNodes.add(o);lvl1.add(o);});
+  if(layers>=2){
+    lvl1.forEach(o=>{ adj[o].forEach(o2=>focusNodes.add(o2)); });
+  }
+  focusLinks=new Set();
+  LINKS.forEach(l=>{ if(focusNodes.has(l.s)&&focusNodes.has(l.t)) focusLinks.add(l._k); });
+}
+// 供應鏈視圖:選哪些節點與連線
+function computeChain(){
+  focusNodes=new Set();
+  CHAIN_SPINE.forEach(e=>focusNodes.add(e.id));
+  CHAIN_SIDE_SERVER.forEach(e=>focusNodes.add(e.id));
+  CHAIN_SIDE_APP.forEach(e=>focusNodes.add(e.id));
+  // 展開的分類:加入「該分類往下的 sub/make 直接子節點」
+  chainExpanded.forEach(catId=>{
+    LINKS.forEach(l=>{
+      if(l.s===catId && (l.type==="sub" || l.type==="benefit")){
+        const c=byId[l.t];
+        if(c && (c.type==="subtech" || (c.type==="co" && c.tw))) focusNodes.add(l.t);
+      }
+      if(l.t===catId && l.type==="make"){
+        const c=byId[l.s];
+        if(c && c.type==="co" && c.tw) focusNodes.add(l.s);
+      }
+    });
+  });
+  focusLinks=new Set();
+  LINKS.forEach(l=>{
+    if(focusNodes.has(l.s) && focusNodes.has(l.t)) focusLinks.add(l._k);
+  });
+}
+function curNodes(){return NODES.filter(n=>focusNodes.has(n.id));}
+function curLinks(){return LINKS.filter(l=>focusLinks.has(l._k));}
+
+// 單擊:聚焦模式時 = 鄰居一層;供應鏈模式時 = 展開該分類顯示下層
+function focusOne(id){
+  if(mode==="chain"){
+    if(byId[id] && (byId[id].type==="tech" || byId[id].type==="root")){
+      if(chainExpanded.has(id)) chainExpanded.delete(id);
+      else chainExpanded.add(id);
+      computeChain();
+      restart();
+    }
+    return;
+  }
+  pushHistory(id, 1);
+  computeFocus(id, 1);
+  d3.select("#pulse").style("display","none");
+  d3.select("#btn-back").style("display",id==="ROOT"?"none":"inline-flex");
+  restart();
+  svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);
+}
+// 雙擊:聚焦模式時 = 鄰居兩層;供應鏈模式中不做事
+function focusTwo(id){
+  if(mode==="chain") return;
+  pushHistory(id, 2);
+  computeFocus(id, 2);
+  d3.select("#pulse").style("display","none");
+  d3.select("#btn-back").style("display","inline-flex");
+  restart();
+  svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);
+}
+// 進入/離開供應鏈視圖
+function enterChain(){
+  mode="chain";
+  chainExpanded=new Set();
+  computeChain();
+  d3.select("#pulse").style("display","none");
+  d3.select("#btn-back").style("display","inline-flex");
+  d3.select("#btn-chain").text("← 聚焦視圖").style("background","#c98fe0").style("border-color","#c98fe0");
+  restart();
+  svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+}
+function exitChain(){
+  mode="focus";
+  chainExpanded.clear();
+  computeFocus("ROOT",1);
+  d3.select("#btn-back").style("display","none");
+  d3.select("#btn-chain").text("供應鏈視圖").style("background","#46cdd6").style("border-color","#46cdd6");
+  restart();
+}
+// 回到全局 = 回到 ROOT 一層(且離開供應鏈視圖)
+function resetView(){
+  selId=null; d3.select("#panel").classed("open",false);
+  if(mode==="chain"){ exitChain(); return; }
+  focusHistory=[]; historyIdx=-1;
+  updateHistoryButtons();
+  computeFocus("ROOT", 1);
+  d3.select("#btn-back").style("display","none");
+  restart();
+  svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+}
+// 全部展開 = ROOT 兩層
+function expandAll(){ if(mode==="chain") return; focusTwo("ROOT"); }
+
+function linkPath(d){
+  const sx=d.source.x,sy=d.source.y,tx=d.target.x,ty=d.target.y,mx=(sx+tx)/2;
+  return `M${sx},${sy}C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+}
+
+function restart(){
+  const nodes=curNodes();
+  const links=curLinks().map(l=>Object.assign({},l));
+  const old={};if(nodeSel)nodeSel.each(d=>old[d.id]=d);
+  nodes.forEach(n=>{const o=old[n.id];if(o){n.x=o.x;n.y=o.y;n.vx=o.vx;n.vy=o.vy;}else{n.x=W/2+(Math.random()-.5)*160;n.y=H/2+(Math.random()-.5)*160;}});
+  links.forEach(l=>{l.source=l.s;l.target=l.t;});
+
+  linkSel=gLink.selectAll("path").data(links,d=>d.s+"_"+d.t+"_"+d.type);
+  linkSel.exit().remove();
+  linkSel=linkSel.enter().append("path")
+      .attr("class",d=>"link "+d.type+(d.firm?" firm":"")+(d.grade==="fa"?" grade-fa":""))
+      .attr("stroke-width",d=>d.firm?3.4:(d.grade==="fa"?2.4:(d.type==="sub"?1.6:2)))
+      .attr("marker-end",d=>d.type==="make"?"url(#arrowMake)":d.type==="coop"?"url(#arrowCoop)":d.type==="benefit"?"url(#arrowBenefit)":d.type==="warn"?"url(#arrowWarn)":null)
+    .merge(linkSel);
+
+  nodeSel=gNode.selectAll("g.node").data(nodes,d=>d.id);
+  nodeSel.exit().remove();
+  const ent=nodeSel.enter().append("g").attr("class","node").style("cursor","pointer")
+      .on("click",(e,d)=>{ if(longPressed){longPressed=false;return;} if(autoPanel) openPanel(d); focusOne(d.id); })
+      .on("dblclick",(e,d)=>{e.stopPropagation(); if(autoPanel) openPanel(d); focusTwo(d.id);})
+      .on("touchstart",(e,d)=>{
+        if(e.touches && e.touches.length>1) return;
+        clearTimeout(longPressTimer);
+        longPressed=false;
+        longPressTimer=setTimeout(()=>{
+          longPressed=true;
+          if(autoPanel) openPanel(d);
+          focusTwo(d.id);
+          if(navigator.vibrate) navigator.vibrate(15);  // 觸覺反饋
+        }, 450);
+      },{passive:true})
+      .on("touchend",()=>{ clearTimeout(longPressTimer); })
+      .on("touchmove",()=>{ clearTimeout(longPressTimer); })
+      .on("mouseenter",(e,d)=>{highlight(d.id);showTip(e,d);})
+      .on("mousemove",(e,d)=>moveTip(e))
+      .on("mouseleave",()=>{highlight(null);hideTip();})
+      .call(d3.drag()
+        .on("start",(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+        .on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y;})
+        .on("end",(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  ent.each(function(d){
+    const sel=d3.select(this);
+    if(d.type==="root"||d.type==="tech"||d.type==="subtech"||d.type==="target"){
+      const s=nodeR(d);
+      sel.append("rect").attr("class","shape").attr("width",s*1.7).attr("height",s*1.7).attr("x",-s*.85).attr("y",-s*.85)
+        .attr("transform","rotate(45)").attr("rx",3)
+        .attr("fill",d.type==="root"?"#26242c":d.type==="tech"?"#1c1e26":d.type==="subtech"?"#15222a":"#211a28")
+        .attr("stroke",nodeColor(d)).attr("stroke-width",d.type==="root"?3:d.type==="tech"?2.6:2);
+    }else{
+      if(d.demand){
+        // 需求方/客戶:外加虛線環區分
+        sel.append("circle").attr("r",nodeR(d)+5).attr("fill","none")
+          .attr("stroke","#e8c25a").attr("stroke-width",1.4).attr("stroke-dasharray","3 3").attr("opacity",.9);
+        sel.append("circle").attr("class","shape").attr("r",nodeR(d))
+          .attr("fill","#3a2f12").attr("stroke","#e8c25a").attr("stroke-width",2.4);
+      }else{
+        sel.append("circle").attr("class","shape").attr("r",nodeR(d))
+          .attr("fill",d.foreign?"#1a1a20":nodeColor(d)).attr("stroke",nodeColor(d)).attr("stroke-width",2);
+      }
+    }
+    // 逆風小圓點(右上角)
+    if(d.warn){
+      sel.append("circle").attr("cx",nodeR(d)*.85).attr("cy",-nodeR(d)*.85).attr("r",3.5)
+        .attr("fill","#a874c9").attr("stroke","#1a1620").attr("stroke-width",1).attr("pointer-events","none");
+    }
+    // 投資面當紅標記(左上角小🔥)
+    if(HOT_STOCKS.has(d.id)){
+      sel.append("text").attr("x",-nodeR(d)*.85).attr("y",-nodeR(d)*.7).attr("font-size","11px")
+        .attr("text-anchor","middle").attr("pointer-events","none").text("🔥");
+    }
+    // 關注清單標記(右側 ⭐)
+    if(watchlist.has(d.id)){
+      sel.append("text").attr("x",nodeR(d)+(d.type==="co"?2:0)).attr("y",-nodeR(d)*.55).attr("font-size","11px")
+        .attr("text-anchor","start").attr("pointer-events","none").text("⭐");
+    }
+    // 時程徽章(右下角):2026Q1+ 綠 / 2026H2 黃 / 2027+ 藍
+    if(showTiming && d.timing){
+      const t=d.timing;
+      const color = t.startsWith("2026Q") ? "#3fae6e" : (t.startsWith("2026H") ? "#e8c25a" : "#5b8fd6");
+      const badge = sel.append("g").attr("transform",`translate(${nodeR(d)*.5},${nodeR(d)+8})`).attr("pointer-events","none");
+      badge.append("rect").attr("x",-22).attr("y",0).attr("width",44).attr("height",13).attr("rx",6)
+        .attr("fill",color).attr("opacity",.92);
+      badge.append("text").attr("x",0).attr("y",10).attr("text-anchor","middle")
+        .attr("font-family","var(--mono)").attr("font-size","9px").attr("fill","#0e1014").attr("font-weight","600").text(t);
+    }
+  });
+  ent.append("text").attr("class",d=>"nlabel "+(d.type==="co"?"co":"tech"))
+      .attr("text-anchor",d=>d.type==="co"?"start":"middle")
+      .attr("dx",d=>d.type==="co"?nodeR(d)+8:0)
+      .attr("dy",d=>d.type==="co"?4:((d.type==="tech"||d.type==="root")?-nodeR(d)-10:-nodeR(d)-8))
+      .style("fill",d=>d.type==="root"?"#ffffff":d.type==="tech"?"#f1cd92":d.type==="subtech"?"#9fe3e9":d.type==="target"?"#dcb6ef":d.demand?"#e8c25a":d.foreign?"#aeaeb8":"#bfe6ad")
+      .text(d=>d.stock?`${d.name} ${d.stock}`:d.name);
+  nodeSel=ent.merge(nodeSel);
+
+  // 碰撞半徑:把標籤寬度也算進去
+  const collideR=d=>{
+    const base=nodeR(d);
+    const txt=(d.stock?`${d.name} ${d.stock}`:d.name)||"";
+    const labelW=txt.length*6.5;
+    if(d.type==="co") return base + 14 + labelW*0.45;
+    return base + 16 + Math.min(labelW*0.3, 34);
+  };
+
+  if(mode==="chain"){
+    // ===== 供應鏈視圖:左→右橫向布局 =====
+    // 主鏈 X 位置(均分)
+    const padX=110, usableW=W-padX*2;
+    const spineY=H*0.42;
+    const sideServerY=H*0.74;  // 機構支援群(伺服器周邊)在伺服器下方
+    const sideAppY=H*0.18;     // 應用支線在上方
+    const N=CHAIN_SPINE.length;
+    const xOf={};
+    CHAIN_SPINE.forEach((e,i)=>{ xOf[e.id]=padX + (usableW*i)/(N-1); });
+    // 機構支援橫向排在伺服器 ~ 重電之間
+    const serverX=xOf["SERVER"];
+    const NS=CHAIN_SIDE_SERVER.length;
+    CHAIN_SIDE_SERVER.forEach((e,i)=>{ xOf[e.id]= padX + (usableW*(i+0.5))/NS; });
+    // 應用支線在上方,均分整條主鏈寬度
+    CHAIN_SIDE_APP.forEach((e,i)=>{ xOf[e.id]= padX + usableW*(0.3 + 0.4*i); });
+
+    // 固定主鏈與支線的位置;展開的子節點則用力導向自由排列
+    nodes.forEach(n=>{
+      if(xOf[n.id]!==undefined){
+        n.fx=xOf[n.id];
+        if(CHAIN_SPINE.some(e=>e.id===n.id)) n.fy=spineY;
+        else if(CHAIN_SIDE_SERVER.some(e=>e.id===n.id)) n.fy=sideServerY;
+        else n.fy=sideAppY;
+      }else{
+        // 展開的子節點:依其父分類定 X
+        let parentCat=null;
+        chainExpanded.forEach(catId=>{ if(adj[catId].includes(n.id)) parentCat=catId; });
+        if(parentCat && xOf[parentCat]!==undefined){
+          if(!old[n.id]){
+            n.x=xOf[parentCat]+(Math.random()-.5)*60;
+            n.y=(CHAIN_SPINE.some(e=>e.id===parentCat) ? spineY+120 : sideServerY+100) + (Math.random()-.5)*40;
+          }
+          n.fx=null; n.fy=null;
+        }else{
+          n.fx=null; n.fy=null;
+        }
+      }
+    });
+
+    if(!sim){
+      sim=d3.forceSimulation(nodes)
+        .force("link",d3.forceLink(links).id(d=>d.id).distance(40).strength(.05))
+        .force("charge",d3.forceManyBody().strength(-300).distanceMax(500))
+        .force("collide",d3.forceCollide().radius(collideR).strength(1).iterations(5))
+        .on("tick",ticked);
+    }else{
+      sim.nodes(nodes);
+      sim.force("link").links(links).distance(40).strength(.05);
+      sim.force("charge",d3.forceManyBody().strength(-300).distanceMax(500));
+      sim.force("collide",d3.forceCollide().radius(collideR).strength(1).iterations(5));
+      sim.force("radial",null);
+      sim.force("x",null);
+      sim.force("y",null);
+    }
+    sim.alpha(.9).alphaDecay(.02).restart();
+    return;
+  }
+
+  // ===== 聚焦視圖(預設):放射圖 =====
+  const cx=W/2, cy=H/2;
+  const hop={}; hop[focusId]=0;
+  adj[focusId].forEach(o=>{ if(focusNodes.has(o)) hop[o]=1; });
+  nodes.forEach(n=>{ if(hop[n.id]===undefined) hop[n.id]=2; });
+  const lvl1=nodes.filter(n=>hop[n.id]===1), lvl2=nodes.filter(n=>hop[n.id]===2);
+  const r1=Math.max(120, Math.min(W,H)*0.18 + lvl1.length*4);
+  const r2=Math.max(220, Math.min(W,H)*0.34 + lvl2.length*2);
+  nodes.forEach(n=>{
+    if(n.id===focusId){ n.fx=cx; n.fy=cy; }
+    else { n.fx=null; n.fy=null; }
+  });
+  lvl1.forEach((n,i)=>{ const a=(i/lvl1.length)*2*Math.PI - Math.PI/2; if(!old[n.id]){n.x=cx+r1*Math.cos(a);n.y=cy+r1*Math.sin(a);} });
+  lvl2.forEach((n,i)=>{ const a=(i/Math.max(1,lvl2.length))*2*Math.PI - Math.PI/4; if(!old[n.id]){n.x=cx+r2*Math.cos(a);n.y=cy+r2*Math.sin(a);} });
+
+  if(!sim){
+    sim=d3.forceSimulation(nodes)
+      .force("x",d3.forceX(cx).strength(.015))
+      .force("y",d3.forceY(cy).strength(.015))
+      .force("radial",d3.forceRadial(d=>hop[d.id]===0?0:hop[d.id]===1?r1:r2, cx, cy).strength(.55))
+      .force("link",d3.forceLink(links).id(d=>d.id).distance(90).strength(.04))
+      .force("charge",d3.forceManyBody().strength(-800).distanceMax(1000))
+      .force("collide",d3.forceCollide().radius(collideR).strength(1).iterations(5))
+      .on("tick",ticked);
+  }else{
+    sim.nodes(nodes);
+    sim.force("link").links(links);
+    sim.force("radial",d3.forceRadial(d=>hop[d.id]===0?0:hop[d.id]===1?r1:r2, cx, cy).strength(.55));
+    sim.force("charge",d3.forceManyBody().strength(-800).distanceMax(1000));
+    sim.force("collide",d3.forceCollide().radius(collideR).strength(1).iterations(5));
+    sim.force("x",d3.forceX(cx).strength(.015));
+    sim.force("y",d3.forceY(cy).strength(.015));
+    sim.force("link").distance(90).strength(.04);
+  }
+  sim.alpha(.95).alphaDecay(.015).restart();
+}
+function ticked(){
+  linkSel.attr("d",linkPath);
+  nodeSel.attr("transform",d=>`translate(${d.x},${d.y})`);
+}
+
+// 明牌標籤:🔥 投資面當紅 / ⭐ 利基龍頭(以公開資訊為準,僅標誌指引,非投資建議)
+const HOT_STOCKS = new Set([
+  // Vera Rubin / Nvidia 供應鏈核心
+  "hosiden",      // 禾伸堂 高壓 MLCC
+  "sinanen",      // 信昌電 高壓 MLCC
+  "jamicon",      // 立隆電 鋁電容
+  "auras",        // 奇鋐
+  "shuanghong",   // 雙鴻
+  "jpc",          // 上詮 FAU
+  "mpi",          // 旺矽
+  "alchip",       // 世芯 ASIC
+  "gusc",         // 創意
+  "wiwynn",       // 緯穎
+  "foxconn",      // 鴻海
+  // 玻璃基板 / CoPoS 商轉首發
+  "thinkpower",   // 鈦昇
+  "chuni",        // 群翊
+  "genda",        // 正達
+  "tpk",          // TPK-KY
+  // 衛星純度高
+  "compeq",       // 華通
+  "sdt",          // 昇達科
+  // 機器人題材
+  "apex_dyn",     // 台灣精銳
+  "hiwin",        // 上銀
+  // 化合物半導體
+  "gwc",          // 環球晶
+  "win_semi",     // 穩懋
+  // 特化 2nm 在地化
+  "emat",         // 新應材
+  "taisol_chem",  // 三福化
+  "taichem",      // 台特化
+  // ASIC turn-key
+  "mtk",          // 聯發科
+  // 散熱新星
+  "maico",        // 邁科
+  // narrative 新增當紅
+  "txc",          // 晶技 Rubin XO 法說
+  "sporton",      // 耕興 WiFi7 龍頭
+  "dongyan",      // 東研信超 CSP 整櫃 EMC
+  "dajing",       // 大井泵浦 液冷水泵國產化
+  "chiefcon",     // 佳必琪 224Gbps 高速銅纜
+  "weiheng",      // 維熹 ORV3 大電力線束
+  "umc",          // 聯電 成熟製程漲價
+  "sumco_sun",    // 昇陽半 再生晶圓擴產
+  "icevo",        // 意騰-KY 邊緣 AI ASR
+  "thunder",      // 雷虎 無人機國家隊
+  "prime_view",   // 元太 電子紙霸權
+  "datung_c",     // 大東電 特高壓電纜
+  "lianyou",      // 聯友金屬 鎢回收獨家
+  "playnitride",  // 錼創 Micro LED 光互連
+  "sas_silicon",  // 中美晶 太空太陽能第七級
+  "psc",          // 力積電 DDR4+成熟製程
+  "esmt",         // 晶豪科 DDR4 缺口
+  "auras",        // 奇鋐 Microsoft 直供(再加強)
+  "wiwynn",       // 緯穎 AWS
+  "alchip",       // 世芯 AWS Trainium
+  "asus",         // 華碩 AI PC+伺服器
+  "hantang",      // 漢唐 廠務龍頭
+  "yason",        // 亞翔 廠務五雄
+  "silstandard",  // 信紘科 台積電 5 成
+]);
+
+// tooltip
+const tipEl=document.getElementById("tip");
+function showTip(e,d){
+  const isHot = HOT_STOCKS.has(d.id);
+  const hotBadge = isHot ? '<span class="ttag" style="background:rgba(255,140,40,.18);color:#ffa86b">🔥 投資面當紅</span>' : '';
+  const demandBadge = d.demand ? '<span class="ttag" style="background:rgba(232,194,90,.18);color:#e8c25a">⭐ 需求方/客戶</span>' : '';
+  const warnBadge = d.warn ? '<span class="ttag" style="background:rgba(168,116,201,.18);color:#cfa3e3">⚠ 有逆風</span>' : '';
+  const timingBadge = d.timing ? (() => {
+    const t=d.timing;
+    const c = t.startsWith("2026Q") ? "#3fae6e" : (t.startsWith("2026H") ? "#e8c25a" : "#5b8fd6");
+    return `<span class="ttag" style="background:color-mix(in srgb,${c} 18%,transparent);color:${c}">📅 ${t}</span>`;
+  })() : '';
+  const typeBadge = `<span class="ttag" style="background:color-mix(in srgb,${nodeColor(d)} 18%,transparent);color:${nodeColor(d)}">${TYPE_LABEL[d.type]||d.type}</span>`;
+  const desc = (d.desc||"").length > 130 ? (d.desc.slice(0,130)+"…") : (d.desc||"");
+  const detailHint = autoPanel ? '' : '<div style="margin-top:6px;font-size:10px;color:#7d7d8a;font-family:var(--mono);letter-spacing:.06em">完整資訊→開「📋 詳細欄」</div>';
+  tipEl.innerHTML =
+    `<div class="tname">${d.name}${isHot?' 🔥':''}</div>` +
+    (d.stock ? `<div class="tstock">股號 ${d.stock}</div>` : '') +
+    `<div>${typeBadge}${hotBadge}${demandBadge}${warnBadge}${timingBadge}</div>` +
+    (desc ? `<div class="tdesc" style="margin-top:4px">${desc}</div>` : '') +
+    detailHint;
+  tipEl.classList.add("show");
+  moveTip(e);
+}
+function moveTip(e){
+  const margin=14;
+  let x=e.clientX+margin, y=e.clientY+margin;
+  const w=tipEl.offsetWidth, h=tipEl.offsetHeight;
+  if(x+w+8>innerWidth) x=e.clientX-w-margin;
+  if(y+h+8>innerHeight) y=e.clientY-h-margin;
+  tipEl.style.left=x+"px"; tipEl.style.top=y+"px";
+}
+function hideTip(){ tipEl.classList.remove("show"); }
+
+function highlight(id){
+  if(!id){
+    nodeSel&&nodeSel.classed("faded",false);
+    linkSel&&linkSel.classed("faded",false);
+    gNode.selectAll(".nlabel").classed("faded",false);
+    return;
+  }
+  const keep=new Set([id]); adj[id].forEach(o=>keep.add(o));
+  nodeSel.classed("faded",d=>!keep.has(d.id));
+  gNode.selectAll(".node").select(".shape");
+  nodeSel.each(function(d){d3.select(this).select(".nlabel");});
+  nodeSel.selectAll(".nlabel").classed("faded",function(){return false;});
+  gNode.selectAll("g.node").each(function(d){ d3.select(this).select("text").classed("faded",!keep.has(d.id)); });
+  linkSel.classed("faded",d=>!(d.s===id||d.t===id));
+}
+
+const panel=d3.select("#panel");
+function openPanel(d){
+  selId=d.id;
+  d3.select("#ptag").text(TYPE_LABEL[d.type]).style("background","color-mix(in srgb,"+nodeColor(d)+" 18%,transparent)").style("color",nodeColor(d));
+  d3.select("#ptitle").text(d.name);
+  d3.select("#pstock").text(d.stock?("股號 "+d.stock):(d.foreign?"國外廠商":""));
+  // 關注按鈕(只對公司節點顯示)
+  d3.select("#pwatch").remove();
+  if(d.type==="co"){
+    const isWatched = watchlist.has(d.id);
+    d3.select("#pstock").node().insertAdjacentHTML("afterend",
+      `<button id="pwatch" style="margin:6px 0 8px;padding:5px 12px;font-family:var(--mono);font-size:11.5px;cursor:pointer;background:${isWatched?'#e8c25a':'transparent'};color:${isWatched?'#1a1408':'#c9c6bc'};border:1px solid ${isWatched?'#e8c25a':'var(--border)'};border-radius:6px">${isWatched?'⭐ 已關注 (點此移除)':'☆ 加入關注清單'}</button>`);
+    document.getElementById("pwatch").onclick = ()=>{
+      toggleWatch(d.id);
+      openPanel(d); // 重繪面板
+    };
+  }
+  d3.select("#pdesc").html((d.desc||"").replace(/;/g, ';<br>'));
+  // 相關題材徽章(對公司節點顯示其連到哪些 ROOT 分類/主題)
+  d3.select("#pthemes").remove();
+  if(d.type==="co" && adj[d.id]){
+    // 從相鄰 + 兩跳找主題級節點
+    const themes = new Set();
+    const visited = new Set([d.id]);
+    function trace(id, depth){
+      if(depth>=2 || !adj[id]) return;
+      adj[id].forEach(o=>{
+        if(visited.has(o)) return;
+        visited.add(o);
+        const n = byId[o];
+        if(n && (n.type==="tech" || n.type==="root")) themes.add(n.id);
+        else if(n) trace(o, depth+1);
+      });
+    }
+    trace(d.id, 0);
+    if(themes.size){
+      const themeNames = {
+        "ROOT":"AI 全鏈","INSPECT":"檢測測試","ADVPKG":"先進封裝","CHIP":"AI 晶片",
+        "MEM":"HBM/記憶體","SERVER":"伺服器","THERMAL":"散熱液冷","POWER":"電源",
+        "CONN":"連接器","PCBCCL":"PCB/CCL","NET":"網路 CPO","GRID":"重電",
+        "MATERIAL":"上游材料","ROBOT":"機器人","SAT":"低軌衛星","QUANTUM":"量子",
+        "UAV":"無人機","MACHINE":"工具機","EINK":"電子紙","CABLE_HV":"特高壓電纜",
+        "TUNGSTEN":"鎢戰略","QUARTZ":"石英"
+      };
+      const badges = [...themes]
+        .filter(t=>themeNames[t])
+        .map(t=>`<span style="display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:3px 8px;border-radius:11px;margin:0 4px 4px 0;background:rgba(232,194,90,.12);border:1px solid rgba(232,194,90,.45);color:#e8c25a;cursor:pointer" onclick="focusOne('${t}');event.stopPropagation()">${themeNames[t]}</span>`).join('');
+      if(badges) d3.select("#pdesc").node().insertAdjacentHTML("beforebegin",
+        `<div id="pthemes" style="margin-bottom:10px">${badges}</div>`);
+    }
+  }
+  // 時程標記
+  d3.select("#ptiming").remove();
+  if(d.timing){
+    const t=d.timing;
+    const color = t.startsWith("2026Q") ? "#3fae6e" : (t.startsWith("2026H") ? "#e8c25a" : "#5b8fd6");
+    const label = t.startsWith("2026Q") ? "當下受惠" : (t.startsWith("2026H") ? "近期受惠" : "中期受惠");
+    d3.select("#pdesc").node().insertAdjacentHTML("afterend",
+      `<div id="ptiming" style="margin:8px 0 4px;font-size:12px"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.13em;color:${color};padding:3px 9px;border:1px solid ${color};border-radius:14px">📅 ${t} ・ ${label}</span></div>`);
+  }
+  // 逆風 / 觀察點(警示)
+  d3.select("#pwarn").remove();
+  if(d.warn){
+    d3.select("#pdesc").node().insertAdjacentHTML("afterend",
+      `<div id="pwarn" style="background:rgba(168,116,201,.12);border-left:3px solid #a874c9;border-radius:6px;padding:9px 11px;margin:8px 0 4px;font-size:12.5px;color:#dbc3ea;line-height:1.7"><b style="font-family:var(--mono);font-size:10px;letter-spacing:.13em;color:#a874c9">⚠ 逆風 / 觀察點</b><br>${d.warn}</div>`);
+  }
+  const pc=d3.select("#pchildren");pc.html("");
+  const neigh=adj[d.id];
+  if(neigh.length){
+    const techs=neigh.filter(o=>byId[o].type!=="co");
+    const cos=neigh.filter(o=>byId[o].type==="co");
+    if(techs.length){pc.append("div").attr("class","plist-title").text("相關技術 / Tech");techs.forEach(o=>addChip(pc,byId[o]));}
+    if(cos.length){pc.append("div").attr("class","plist-title").text("相關公司 / Companies");cos.forEach(o=>addChip(pc,byId[o]));}
+  }
+  panel.classed("open",true);
+}
+function addChip(pc,o){
+  pc.append("span").attr("class","chip").style("border-left","3px solid "+nodeColor(o))
+    .text(o.stock?`${o.name} ${o.stock}`:o.name)
+    .on("click",()=>{focusOne(o.id);openPanel(o);});
+}
+d3.select("#pclose").on("click",()=>{panel.classed("open",false);selId=null;});
+d3.select("#btn-expand").on("click",expandAll);
+d3.select("#btn-reset").on("click",resetView);
+d3.select("#btn-back").on("click",resetView);
+d3.select("#btn-chain").on("click",()=>{ if(mode==="chain") exitChain(); else enterChain(); });
+d3.select("#btn-panel").on("click",function(){
+  autoPanel=!autoPanel;
+  d3.select(this)
+    .text(autoPanel?"📋 詳細欄:開":"📋 詳細欄:關")
+    .style("background", autoPanel?"#84ce6f":"")
+    .style("border-color", autoPanel?"#84ce6f":"")
+    .style("color", autoPanel?"#0a1a08":"");
+  if(!autoPanel){
+    // 切回關閉時順手收掉已開的面板
+    panel.classed("open",false);
+    selId=null;
+  }
+});
+d3.select("#btn-timing").on("click",function(){
+  showTiming=!showTiming;
+  d3.select(this)
+    .text(showTiming?"📅 時程:開":"📅 時程")
+    .style("background", showTiming?"#5b8fd6":"")
+    .style("border-color", showTiming?"#5b8fd6":"")
+    .style("color", showTiming?"#fff":"");
+  restart();
+});
+d3.select("#btn-prev").on("click",goPrev);
+d3.select("#btn-next").on("click",goNext);
+d3.select("#btn-watch").on("click",function(){
+  // 點主按鈕:打開/關閉「只看關注」(若關注清單為空提示一下)
+  if(watchlist.size===0){
+    alert("關注清單為空。打開節點面板按⭐就能加入。");
+    return;
+  }
+  watchOnly = !watchOnly;
+  d3.select(this)
+    .style("background", watchOnly?"#e8c25a":"")
+    .style("border-color", watchOnly?"#e8c25a":"")
+    .style("color", watchOnly?"#1a1408":"");
+  if(watchOnly){
+    // 只顯示關注清單及其鄰居一層
+    focusNodes = new Set();
+    watchlist.forEach(id=>{
+      if(byId[id]){
+        focusNodes.add(id);
+        adj[id].forEach(o=>focusNodes.add(o));
+      }
+    });
+    focusLinks = new Set();
+    LINKS.forEach(l=>{ if(focusNodes.has(l.s)&&focusNodes.has(l.t)) focusLinks.add(l._k); });
+    restart();
+  }else{
+    computeFocus("ROOT", 1);
+    restart();
+  }
+});
+updateWatchUI();
+
+// ========== 篩選器 ==========
+function getFilters(){
+  const themes=[],timings=[],attrs=[];
+  document.querySelectorAll('#filter-panel input[type=checkbox]').forEach(c=>{
+    if(!c.checked) return;
+    const k=c.dataset.filter, v=c.value;
+    if(k==='theme') themes.push(v);
+    else if(k==='timing') timings.push(v);
+    else if(k==='attr') attrs.push(v);
+  });
+  return {themes,timings,attrs};
+}
+function applyFilter(){
+  const {themes,timings,attrs}=getFilters();
+  if(themes.length===0 && timings.length===0 && attrs.length===0){
+    document.getElementById('filter-result').textContent='請至少勾選一個條件';
+    return;
+  }
+  const passing=[];
+  NODES.forEach(n=>{
+    if(n.type!=='co' || !n.tw) return;
+    if(themes.length>0){
+      const ok=themes.some(t=>adj[n.id].includes(t));
+      if(!ok) return;
+    }
+    if(timings.length>0){
+      if(!n.timing) return;
+      const ok=timings.some(t=>n.timing.startsWith(t));
+      if(!ok) return;
+    }
+    if(attrs.includes('hot') && !HOT_STOCKS.has(n.id)) return;
+    if(attrs.includes('nowarn') && n.warn) return;
+    if(attrs.includes('haswarn') && !n.warn) return;
+    if(attrs.includes('watch') && !watchlist.has(n.id)) return;
+    if(attrs.includes('fa')){
+      const hasFA = LINKS.some(l => (l.s===n.id||l.t===n.id) && l.grade==='fa');
+      if(!hasFA) return;
+    }
+    passing.push(n.id);
+  });
+  document.getElementById('filter-result').textContent = `符合 ${passing.length} 家台廠`;
+  if(passing.length===0) return;
+  focusNodes = new Set(passing);
+  themes.forEach(t=>{ if(byId[t]) focusNodes.add(t); });
+  focusLinks = new Set();
+  LINKS.forEach(l=>{ if(focusNodes.has(l.s)&&focusNodes.has(l.t)) focusLinks.add(l._k); });
+  restart();
+  updateDashboard();
+}
+function clearFilter(){
+  document.querySelectorAll('#filter-panel input[type=checkbox]').forEach(c=>c.checked=false);
+  document.getElementById('filter-result').textContent='';
+  computeFocus("ROOT",1);
+  restart();
+  updateDashboard();
+}
+d3.select("#btn-filter").on("click",function(){
+  const p=document.getElementById('filter-panel');
+  p.style.display = p.style.display==='block' ? 'none' : 'block';
+});
+d3.select("#filter-close").on("click",()=>{document.getElementById('filter-panel').style.display='none';});
+d3.select("#filter-apply").on("click",applyFilter);
+d3.select("#filter-clear").on("click",clearFilter);
+
+// ========== 儀表板 ==========
+function updateDashboard(){
+  const dash=document.getElementById('dashboard');
+  const tw_total = NODES.filter(n=>n.tw).length;
+  const hot_count = HOT_STOCKS.size;
+  const fa_count = LINKS.filter(l=>l.grade==='fa').length;
+  const watch_total = watchlist.size;
+  let watch_now=0, watch_h2=0, watch_27=0, watch_warn=0, watch_hot=0;
+  watchlist.forEach(id=>{
+    const n=byId[id]; if(!n) return;
+    if(n.timing){
+      if(n.timing.startsWith("2026Q")) watch_now++;
+      else if(n.timing.startsWith("2026H")) watch_h2++;
+      else if(n.timing.startsWith("2027")) watch_27++;
+    }
+    if(n.warn) watch_warn++;
+    if(HOT_STOCKS.has(id)) watch_hot++;
+  });
+  const visible_tw = NODES.filter(n=>n.tw && focusNodes.has(n.id)).length;
+  dash.innerHTML = `
+    <div class="dtitle">📊 儀表板</div>
+    <div class="drow"><span>台廠總計</span><span class="dnum">${tw_total}</span></div>
+    <div class="drow"><span>🔥 當紅</span><span class="dnum">${hot_count}</span></div>
+    <div class="drow"><span>法說級訂單線</span><span class="dnum">${fa_count}</span></div>
+    <div class="drow"><span>當前可見台廠</span><span class="dnum">${visible_tw}</span></div>
+    <div style="height:7px"></div>
+    <div class="dtitle">⭐ 我的關注 (${watch_total})</div>
+    ${watch_total>0?`
+    <div class="drow"><span>當下受惠</span><span class="dnum" style="color:#3fae6e">${watch_now}</span></div>
+    <div class="drow"><span>近期受惠</span><span class="dnum" style="color:#e8c25a">${watch_h2}</span></div>
+    <div class="drow"><span>中期受惠</span><span class="dnum" style="color:#5b8fd6">${watch_27}</span></div>
+    <div class="drow"><span>有逆風</span><span class="dnum" style="color:#a874c9">${watch_warn}</span></div>
+    <div class="drow"><span>含🔥當紅</span><span class="dnum" style="color:#ffa86b">${watch_hot}</span></div>
+    `:'<div style="color:var(--muted);font-size:10px;text-align:center;padding:4px">點面板⭐加入公司</div>'}
+  `;
+}
+updateDashboard();
+d3.select("#btn-fullscreen").on("click",function(){
+  const h=document.querySelector("header");
+  const hidden=h.classList.toggle("hidden");
+  this.textContent=hidden?"⤡":"⤢";
+  this.title=hidden?"展開頂部":"收起頂部";
+});
+d3.select("#story-sel").on("change",function(){
+  const id=this.value;
+  if(!id) return;
+  if(mode==="chain") exitChain();
+
+  // 處理特殊篩選
+  if(id.startsWith("__")){
+    let passing = new Set();
+    let title = "";
+    if(id==="__HOT__"){
+      // 篩出所有 🔥 當紅台廠
+      NODES.forEach(n=>{ if(n.tw && HOT_STOCKS.has(n.id)) passing.add(n.id); });
+      title = "🔥 投資面當紅";
+    } else if(id==="__T_2026Q__"){
+      NODES.forEach(n=>{ if(n.tw && n.timing && n.timing.startsWith("2026Q")) passing.add(n.id); });
+      title = "📅 當下受惠 2026Q1+";
+    } else if(id==="__T_2026H__"){
+      NODES.forEach(n=>{ if(n.tw && n.timing && n.timing.startsWith("2026H")) passing.add(n.id); });
+      title = "📅 近期受惠 2026H2";
+    } else if(id==="__T_2027__"){
+      NODES.forEach(n=>{ if(n.tw && n.timing && n.timing.startsWith("2027")) passing.add(n.id); });
+      title = "📅 中期受惠 2027+";
+    }
+    if(passing.size===0){
+      alert("無符合條件的公司");
+      this.value="";
+      return;
+    }
+    // 套用視圖:只顯示這些公司,連線只保留它們之間+到第一層主題
+    focusNodes = new Set(passing);
+    // 為了讓畫面有結構,也把這些公司直接連到的主題節點加進來
+    passing.forEach(pid=>{
+      if(adj[pid]){
+        adj[pid].forEach(nid=>{
+          const n = byId[nid];
+          if(n && (n.type==="tech" || n.type==="subtech" || n.type==="target")) {
+            focusNodes.add(nid);
+          }
+        });
+      }
+    });
+    focusLinks = new Set();
+    LINKS.forEach(l=>{ if(focusNodes.has(l.s) && focusNodes.has(l.t)) focusLinks.add(l._k); });
+    d3.select("#pulse").style("display","none");
+    d3.select("#btn-back").style("display","inline-flex");
+    restart();
+    svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity);
+    if(typeof updateDashboard==='function') updateDashboard();
+    // 顯示提示
+    d3.select("#filter-result").text(`${title}:${passing.size} 家台廠`);
+    this.value="";
+    return;
+  }
+
+  // 一般題材聚焦
+  focusTwo(id);
+  this.value="";
+});
+
+// 搜尋:填入 datalist 並監聽 input
+(function setupSearch(){
+  const list=document.getElementById("search-list");
+  // 建索引:股號 名稱 → node id
+  const searchIndex=[];
+  NODES.forEach(n=>{
+    const label = n.stock ? `${n.name} ${n.stock}` : n.name;
+    const opt=document.createElement("option");
+    opt.value=label;
+    opt.dataset.nodeId=n.id;
+    list.appendChild(opt);
+    searchIndex.push({label, id:n.id, stock:n.stock||"", name:n.name});
+  });
+  const box=document.getElementById("search-box");
+  function findMatch(v){
+    if(!v) return null;
+    v=v.trim().toLowerCase();
+    // 完全比對:名稱+股號 / 名稱 / 股號
+    let m=searchIndex.find(x=>x.label.toLowerCase()===v);
+    if(m) return m.id;
+    m=searchIndex.find(x=>x.name.toLowerCase()===v);
+    if(m) return m.id;
+    m=searchIndex.find(x=>x.stock===v);
+    if(m) return m.id;
+    // 包含
+    m=searchIndex.find(x=>x.label.toLowerCase().includes(v));
+    return m?m.id:null;
+  }
+  function go(){
+    const id=findMatch(box.value);
+    if(!id) return;
+    if(mode==="chain") exitChain();
+    focusOne(id);
+    openPanel(byId[id]);
+    box.value="";
+    box.blur();
+  }
+  box.addEventListener("change",go);    // datalist 選取會觸發 change
+  box.addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
+})();
+d3.select("#lclose").on("click",()=>{
+  d3.select("#legend").classed("collapsed",true);
+  d3.select("#lopen").classed("show",true);
+});
+d3.select("#lopen").on("click",()=>{
+  d3.select("#legend").classed("collapsed",false);
+  d3.select("#lopen").classed("show",false);
+});
+svg.on("dblclick.zoom",null);
+addEventListener("resize",()=>{W=innerWidth;H=innerHeight;svg.attr("width",W).attr("height",H);if(sim){sim.alpha(.4).restart();}});
+
+computeFocus("ROOT",1);
+d3.select("#pulse").style("display","none");
+restart();
+</script>
+</body>
+</html>
